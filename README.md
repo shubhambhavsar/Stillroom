@@ -1,5 +1,5 @@
 # Stillroom
-A private, on-device camera coach for one-person portraits and short videos.
+An on-device camera coach for choosing where to stand, how to frame a subject and which camera settings suit the shot. The current pilot supports one-person portraits and short videos.
 
 **[Open the camera](https://stillroom-portrait-studio.vastperch24.chatgpt.site)** · [Design walkthrough](https://stillroom-portrait-studio.vastperch24.chatgpt.site/demo/)
 
@@ -22,13 +22,16 @@ Choose a goal → start camera → follow one cue → capture → review → dow
 
 | Milestone | First experience | Test before expanding |
 |---|---|---|
+| Place and detail photography | Tap the subject and choose Space, Detail or Person here. Optionally compare two nearby angles. Show one cue for viewpoint, phone angle or a supported setting. Begin with a café interior and a cup at a window. | Keep the tapped subject visible. Compare only observed views. Check whether beginners can return to the preferred frame and capture the intended mood. |
 | Beach and lake scenery | Rotate the phone horizontally, choose Sky, Shore or Reflection, then align a horizon guide. Check important highlights for clipping. | Correct tilted waterlines. Stay quiet on diagonal shores, waves and hills. Match the preview crop in export. |
 | Person in a place | Tap the landmark to keep. Choose one of two original poses suited to subject size, crop and visible joints. Show a phone movement or body arrow, one at a time. | Both person and landmark remain in frame. Beginners follow the cue without explanation. |
 | Finishing and broader scenery | Preview optional straighten, crop and tonal adjustments beside the original. Test cityscapes and trails as separate scene types. | Compare full-size exports with the phone camera. Keep original available. |
 
+For a location scout, retain temporary thumbnails of sampled views on-device. Compare subject visibility, edge distractions, structural alignment and exposure around the subject. Use the user's chosen emphasis; show both options when scores are close. Verify supported camera adjustments against the resulting frame and allow reset.
+
 Run scene measurements locally on sampled frames. Load the pose model only when people matter. Stabilize recommendations across frames and suppress uncertain cues. Prioritize full-resolution still capture where supported and label fallback dimensions.
 
-**Field trial:** Six beginners, three scenes each, guided and default camera in alternating order. Blind-rate the 18 pairs. Proposed pilot gate: guided preferred in at least 12 pairs, with no recurring wrong-direction cues on either phone platform. Record ties, capture time and saved resolution.
+**Field trial:** Six beginners, three assignments each (café interior or tabletop detail, waterfront, and person in a place), guided and default camera in alternating order. Blind-rate the 18 pairs. Proposed pilot gate: guided preferred in at least 12 pairs, with no recurring wrong-direction cues on either phone platform. Record ties, capture time and saved resolution.
 
 **Huawei references:** [Pose recommendations and imported references](https://consumer.huawei.com/cn/support/content/zh-cn16094218/) · [Live composition guidance](https://consumer.huawei.com/ph/support/content/en-us16107528/) · [Beach and scenery recognition](https://consumer.huawei.com/ca/support/content/en-us15927544/)
 
