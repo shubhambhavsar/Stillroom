@@ -18,6 +18,20 @@ Choose a goal → start camera → follow one cue → capture → review → dow
 | app/view.js | Shared preview geometry and overlays |
 | demo/ | Original simulated experience |
 
+### Proposed photo roadmap
+
+| Milestone | First experience | Test before expanding |
+|---|---|---|
+| Beach and lake scenery | Rotate the phone horizontally, choose Sky, Shore or Reflection, then align a horizon guide. Check important highlights for clipping. | Correct tilted waterlines. Stay quiet on diagonal shores, waves and hills. Match the preview crop in export. |
+| Person in a place | Tap the landmark to keep. Choose one of two original poses suited to subject size, crop and visible joints. Show a phone movement or body arrow, one at a time. | Both person and landmark remain in frame. Beginners follow the cue without explanation. |
+| Finishing and broader scenery | Preview optional straighten, crop and tonal adjustments beside the original. Test cityscapes and trails as separate scene types. | Compare full-size exports with the phone camera. Keep original available. |
+
+Run scene measurements locally on sampled frames. Load the pose model only when people matter. Stabilize recommendations across frames and suppress uncertain cues. Prioritize full-resolution still capture where supported and label fallback dimensions.
+
+**Field trial:** Six beginners, three scenes each, guided and default camera in alternating order. Blind-rate the 18 pairs. Proposed pilot gate: guided preferred in at least 12 pairs, with no recurring wrong-direction cues on either phone platform. Record ties, capture time and saved resolution.
+
+**Huawei references:** [Pose recommendations and imported references](https://consumer.huawei.com/cn/support/content/zh-cn16094218/) · [Live composition guidance](https://consumer.huawei.com/ph/support/content/en-us16107528/) · [Beach and scenery recognition](https://consumer.huawei.com/ca/support/content/en-us15927544/)
+
 ### Run
 Node 22+, npm, curl and Python 3. Browser tests also require ffmpeg. Run `npm ci && npm run build`, then `npm start`. Open localhost:8080. Phone camera access requires HTTPS. The build verifies the model checksum and bundles the pinned runtime. During use, frames stay on the device. The first session downloads the model and runtime.
 
