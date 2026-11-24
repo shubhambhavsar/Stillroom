@@ -1,3 +1,4 @@
+import { MomentMeter } from "./moment.js";
 import { goals, cues, choose, settle, crop } from "./coach.js";
 import { measure, compare, sceneCue } from "./scout.js";
 import { analyzeView, proposeAngle, remember, quality } from "./director.js";
@@ -43,6 +44,7 @@ function size() {
 function controls() {
   const live = !!stream || !!sampleImage,
     recording = recorder?.state === "recording";
+  $("auto").hidden = !stream || goal() === "Video";
   $("flip").disabled = !stream || recording;
   $("stop").disabled = !live && !opening;
   $("goal").disabled = !!recording || opening;
@@ -259,6 +261,7 @@ $("angle").onclick = () => {
   cue();
 };
 function setSubject(x, y) {
+  resetMoment();
   const alreadyDismissed = [...dismissed];
   clearAngles();
   alreadyDismissed.forEach(key => dismissed.add(key));
@@ -419,6 +422,45 @@ async function analyze(time) {
     }
   }
 }
+const meter = new MomentMeter();
+const probe = document.createElement("canvas");
+probe.width = 80;
+probe.height = 60;
+const probeCtx = probe.getContext("2d", {willReadFrequently:true});
+let autoEnabled = true, lastProbe = 0, lastVideoTime = -1, encoding = false;
+function resetMoment() {
+  meter.reset();
+  $("hold").value = 0;
+  $("moment").hidden = true;
+}
+$("auto").onclick = () => {
+  autoEnabled = !autoEnabled;
+  $("auto").setAttribute("aria-pressed", String(autoEnabled));
+  $("auto").textContent = autoEnabled ? "Auto-capture on" : "Auto-capture off";
+  resetMoment();
+};
+function watchMoment(time) {
+  if (!autoEnabled || goal() === "Video" || encoding || $("review").open || document.hidden) return resetMoment();
+  if (time-lastProbe < 130 || video.currentTime === lastVideoTime) return;
+  lastProbe = time;
+  lastVideoTime = video.currentTime;
+  const nose = tracking?.points?.[0];
+  const facePoint = nose?.visibility > .65 ? nose : null;
+  const point = subject || facePoint;
+  $("moment").hidden = false;
+  if (!point) {
+    meter.reset();
+    $("hold").value = 0;
+    $("momentLabel").textContent = "Tap your subject for auto-capture";
+    return;
+  }
+  probeCtx.drawImage(picture,0,0,probe.width,probe.height);
+  const framed = !!subject || (point.x > .13 && point.x < .87 && point.y > .12 && point.y < .9);
+  const result = meter.inspect(probeCtx.getImageData(0,0,probe.width,probe.height),point,time,framed);
+  $("hold").value = result.progress;
+  $("momentLabel").textContent = result.status;
+  if (result.progress === 1) capture(true);
+}
 function draw(time) {
   if (!stream) return;
   if (video.readyState >= 2 && video.videoWidth) {
@@ -427,6 +469,7 @@ function draw(time) {
       ready = true;
       controls();
     }
+    watchMoment(time);
     if (worker && !busy && time - last >= 150) analyze(time);
     if ($("coach").checked && time - lastMetrics >= 500) {
       lastMetrics = time;
@@ -438,6 +481,8 @@ function draw(time) {
   raf = requestAnimationFrame(draw);
 }
 function stop() {
+  resetMoment();
+  encoding = false;
   session++;
   assist = null;
   lastPose = null;
@@ -529,9 +574,13 @@ function review(blob, isVideo) {
   $("save").download =
     "stillroom." +
     (isVideo ? (blob.type.includes("mp4") ? "mp4" : "webm") : "jpg");
+  if (isVideo) $("reviewTitle").textContent = "Review your clip";
+  $("save").textContent = isVideo ? "Save clip" : "Save photo";
   $("review").showModal();
 }
-function capture() {
+function capture(automatic = false) {
+  if (encoding || $("review").open) return;
+  resetMoment();
   resetGuidance();
   if (!ready) return;
   const token = session;
@@ -547,9 +596,14 @@ function capture() {
     full.height = Math.max(1, Math.round(r.h));
     frame(full.getContext("2d"), source, !!stream && mirrored);
     $("dimensions").textContent = full.width + " × " + full.height + " px";
+    encoding = true;
     full.toBlob(
       (b) => {
-        if (b && token === session && !$("review").open) review(b, false);
+        if (token !== session) return;
+        encoding = false;
+        if (!b) { $("message").textContent = "Photo could not be saved. Try again."; return; }
+        $("reviewTitle").textContent = automatic === true ? "Auto-captured while steady" : "Review your shot";
+        review(b, false);
       },
       "image/jpeg",
       0.94,

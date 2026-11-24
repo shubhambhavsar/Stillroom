@@ -33,3 +33,18 @@ test('auto exposure debounces, verifies and restores',async()=>{
  const s={exposureCompensation:0},calls=[];const service=new AutoAssist({getCapabilities:()=>({exposureCompensation:{min:-2,max:2,step:.5}}),getSettings:()=>({...s}),applyConstraints:async({advanced})=>{Object.assign(s,advanced[0]);calls.push(1)}});
  for(let i=0;i<6;i++)await service.sample({high:.5});assert.equal(calls.length,1);assert.equal(s.exposureCompensation,-.5);await service.restore();assert.equal(s.exposureCompensation,0)
 });
+
+import { MomentMeter } from "../app/moment.js";
+test("auto-capture requires sustained detail, framing and stability", () => {
+  const meter = new MomentMeter();
+  const width=80, height=60, data=new Uint8Array(width*height*4);
+  const point={x:.5,y:.5};
+  for(let i=0;i<width*height;i++) data.fill(i%2 ? 150 : 80,i*4,i*4+3);
+  const read=(t,framed=true)=>meter.inspect({data,width,height},point,t,framed).progress;
+  for(let t=0;t<1100;t+=150) assert.ok(read(t)<1);
+  assert.equal(read(1200),1);
+  assert.equal(read(1350,false),0);
+  assert.equal(read(2500),0);
+  data.fill(255);
+  for(let t=2650;t<4400;t+=150) assert.equal(read(t),0);
+});

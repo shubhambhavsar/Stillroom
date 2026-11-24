@@ -381,3 +381,7 @@ main {display:block;max-width:820px;padding-top:12px}
 #inframe {max-width:76%}
 #message {text-align:center;padding:0 12px}
 [hidden] {display:none!important}
+#auto {font-size:.9rem;border-radius:2rem;padding:.45rem .85rem}
+#auto[aria-pressed=false] {background:#354239;color:white}
+#moment {padding:.45rem 1rem;text-align:center;font-size:.94rem}
+#hold {display:block;width:min(12rem,70%);height:.35rem;margin:.45rem auto 0;accent-color:#d1ed98}

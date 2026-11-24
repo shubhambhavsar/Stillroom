@@ -7,13 +7,14 @@
     Stillroom · Camera studio</title
   ><link rel="stylesheet" href="studio.css" />
   <header>
-    <strong><i>◉</i> Stillroom.</strong><a href="demo/">Original walkthrough</a>
+    <strong><i>◉</i> Stillroom.</strong>
   </header>
   <main>
     <section class="studio">
       <div class="bar">
         <span id="badge">CAMERA OFF</span
         >
+        <button id="auto" aria-pressed="true">Auto-capture on</button>
       </div>
       <div class="stage">
         <div id="frame">
@@ -36,6 +37,7 @@
           </div>
         </div>
       </div>
+      <div id="moment" hidden><span id="momentLabel" role="status"></span><progress id="hold" max="1" value="0" aria-label="Auto-capture readiness"></progress></div>
       <div class="deck">
         <button id="flip" disabled>Flip</button
         ><button id="capture" disabled aria-label="Take photo"><b></b></button
@@ -81,7 +83,7 @@
   </main>
   <video id="source" muted autoplay playsinline hidden></video>
   <dialog id="review">
-    <h2>Review your shot</h2>
+    <h2 id="reviewTitle">Review your shot</h2>
     <p id="dimensions"></p>
     <img id="still" alt="Captured photo" /><video
       id="clip"
@@ -89,8 +91,8 @@
       controls
     ></video>
     <div>
-      <button id="again">Back to camera</button
-      ><button id="tryAlternative">Try a variation</button><a id="save" download>Download</a>
+      <button id="again">Discard and retake</button
+      ><button id="tryAlternative">Try a variation</button><a id="save" download>Save photo</a>
     </div>
   </dialog>
   <script type="module" src="app/camera.js"></script>

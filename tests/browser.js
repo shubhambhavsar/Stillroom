@@ -48,6 +48,10 @@ try {
   assert.equal(await page.locator("#poseGuide").isVisible(), false);
   await page.locator("#photo").press("Enter");
   assert.equal(await page.locator("#target").isVisible(), true);
+  await page.locator("dialog[open] #reviewTitle").waitFor({timeout:15000});
+  assert.equal(await page.locator("#reviewTitle").textContent(), "Auto-captured while steady");
+  await page.locator("#again").click();
+  await page.locator("#auto").click();
   await page.locator("#capture").click();
   await page.locator("dialog[open] img").waitFor();
   assert.match(await page.locator("#save").getAttribute("download"), /jpg$/);
