@@ -1,4 +1,4 @@
-export const goals={'Portrait':[3,4],'Profile':[1,1],'Social':[4,5],'Video':[9,16]};
+export const goals={'Space':[4,3],'Detail':[1,1],'Portrait':[3,4],'Profile':[1,1],'Social':[4,5],'Video':[9,16]};
 export function crop(w,h,ratio){
  const sw=Math.min(w,h*ratio),sh=sw/ratio;
  return {x:(w-sw)/2,y:(h-sh)/2,w:sw,h:sh};

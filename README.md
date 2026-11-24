@@ -1,21 +1,22 @@
 # Stillroom
-An on-device camera coach for choosing where to stand, how to frame a subject and which camera settings suit the shot. The current pilot supports one-person portraits and short videos.
+An on-device camera coach for choosing where to stand, how to frame a subject and which camera settings suit the shot. The live pilot supports places, details, one-person portraits and short videos.
 
 **[Open the camera](https://stillroom-portrait-studio.vastperch24.chatgpt.site)** · [Design walkthrough](https://stillroom-portrait-studio.vastperch24.chatgpt.site/demo/)
 
 | Delivered | Validate on phones | Later |
 |---|---|---|
-| Live preview, three crops, person outline, light and framing cues, photo export, silent video where supported | Tracking delay, cue direction, exposure compensation, export, heat | Audio, pose catalogue, native camera controls |
+| Tap a subject, compare two observed angles, fixed selectable pose templates, exposure assist with reset on supporting cameras, source-frame photo export and silent video | Tracking delay, cue direction, exposure compensation, export, heat | Audio, pose catalogue, native camera controls |
 
 **Flow**  
-Choose a goal → start camera → follow one cue → capture → review → download
+Choose Space or Detail → start camera or practice with café samples → tap the same subject in two viewpoints → compare → capture. In Portrait, Profile or Social, select a fixed pose card.
 
 | Module | Responsibility |
 |---|---|
 | app/camera.js | Permissions, capture, controls, lifecycle |
-| app/tracker.js | Local MediaPipe inference and outline extraction in a worker |
+| app/tracker.js | On-device landmark and light measurements for people |
 | app/coach.js | Lighting and framing rules; stable cue selection |
 | app/view.js | Shared preview geometry and overlays |
+| app/scout.js · app/poses.js | Subject-region measurements, viewpoint comparison and original pose templates |
 | demo/ | Original simulated experience |
 
 ### Proposed photo roadmap
@@ -44,7 +45,8 @@ Run `npm test`. With Chromium installed, run `npm run test:browser` after buildi
 | On-phone check | Pass when |
 |---|---|
 | Portrait, profile, social | Preview and exported crop match |
-| Move off-centre, leave, return | Target is intelligible; outline clears and returns |
+| Select a pose, move, leave and return | Fixed pose reference stays in place; written guidance responds |
+| Compare two café angles | Retap the subject in each view, select a reference and export a guide-free photo at the displayed dimensions |
 | Stand before a bright window | Persistent backlight prompts a turn; optional exposure assist respects device support |
 | Switch camera | Selfie cues align with mirrored preview |
 | Record and stop a short clip | Silent clip plays and downloads on a supporting browser |

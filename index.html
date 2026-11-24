@@ -1,6 +1,95 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#18221d"><title>Stillroom · Camera studio</title><link rel="stylesheet" href="studio.css">
-<header><strong><i>◉</i> Stillroom.</strong><a href="demo/">Try the walkthrough ↗</a></header>
-<main><section class="studio"><div class="bar"><span id="badge">CAMERA OFF</span><label>Shot goal <select id="goal"><option>Portrait</option><option>Profile</option><option>Social</option><option>Video</option></select></label></div><div class="stage"><div id="frame"><canvas id="photo"></canvas><canvas id="guide"></canvas><div class="intro" id="intro"><small>CAMERA STUDIO</small><h1>Find your frame.</h1><p>Frame one person and follow a cue as you shoot.</p><button id="start">Start camera</button></div></div></div>
-<div class="deck"><button id="flip" disabled>Flip</button><button id="capture" disabled aria-label="Take photo"><b></b></button><button id="stop" disabled>End</button></div></section>
-<aside><small>FIELD NOTES</small><h2 id="heading" aria-live="polite">Portrait session</h2><p id="hint">Your camera feed stays on this device.</p><div class="options"><button id="pose" hidden>Skip this pose</button><button id="expose" hidden>Try brighter exposure</button></div><hr><label class="toggle"><input id="coach" type="checkbox" checked> Visual coaching</label><p id="health" role="status">Camera permission is requested when you start.</p><p id="message" role="status"></p></aside></main>
-<video id="source" muted autoplay playsinline hidden></video><dialog id="review"><h2>Review your shot</h2><img id="still" alt="Captured portrait"><video id="clip" playsinline controls></video><div><button id="again">Back to camera</button><a id="save" download>Download</a></div></dialog><script type="module" src="app/camera.js"></script></html>
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  /><meta name="theme-color" content="#18221d" /><title>
+    Stillroom · Camera studio</title
+  ><link rel="stylesheet" href="studio.css" />
+  <header>
+    <strong><i>◉</i> Stillroom.</strong><a href="demo/">Original walkthrough</a>
+  </header>
+  <main>
+    <section class="studio">
+      <div class="bar">
+        <span id="badge">CAMERA OFF</span
+        ><label
+          >Shot goal
+          <select id="goal">
+            <option>Space</option>
+            <option>Detail</option>
+            <option>Portrait</option>
+            <option>Profile</option>
+            <option>Social</option>
+            <option>Video</option>
+          </select></label
+        >
+      </div>
+      <div class="stage">
+        <div id="frame">
+          <canvas id="photo"></canvas>
+          <div id="poseGuide" hidden></div>
+          <i id="target" hidden></i><img id="ghost" hidden alt="" /><span
+            id="inframe"
+            hidden
+          ></span>
+          <div class="intro" id="intro">
+            <small>CAMERA STUDIO</small>
+            <h1>Find your frame.</h1>
+            <p>
+              Explore a place, photograph a detail, or choose a portrait pose.
+            </p>
+            <div class="entry">
+              <button id="start">Start camera</button>
+              <button id="practice">Practice with samples</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="deck">
+        <button id="flip" disabled>Flip</button
+        ><button id="capture" disabled aria-label="Take photo"><b></b></button
+        ><button id="stop" disabled>End</button>
+      </div>
+    </section>
+    <aside>
+      <small>SHOT GUIDE</small>
+      <h2 id="heading" aria-live="polite">Portrait session</h2>
+      <p id="hint">Your camera feed stays on this device.</p>
+      <div id="scout" hidden>
+        <button id="angle">Save angle A</button>
+        <button id="sampleNext" hidden>Switch sample view</button>
+        <div id="choices"></div>
+        <button id="clearAngles" hidden>Clear angles</button>
+      </div>
+      <div id="poses" hidden></div>
+      <div class="options">
+        <button id="pose" hidden>Hide pose guide</button
+        ><button id="expose" hidden>Try brighter exposure</button>
+      </div>
+      <hr />
+      <label class="toggle"
+        ><input id="coach" type="checkbox" checked /> Visual coaching</label
+      >
+      <p id="health" role="status">
+        Camera permission is requested when you start.
+      </p>
+      <p id="message" role="status"></p>
+    </aside>
+  </main>
+  <video id="source" muted autoplay playsinline hidden></video>
+  <dialog id="review">
+    <h2>Review your shot</h2>
+    <p id="dimensions"></p>
+    <img id="still" alt="Captured photo" /><video
+      id="clip"
+      playsinline
+      controls
+    ></video>
+    <div>
+      <button id="again">Back to camera</button
+      ><a id="save" download>Download</a>
+    </div>
+  </dialog>
+  <script type="module" src="app/camera.js"></script>
+</html>

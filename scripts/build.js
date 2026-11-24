@@ -10,7 +10,7 @@ if(!await valid().catch(()=>false)){
  if(!await valid())throw Error('Model checksum mismatch');
 }
 await rm('dist',{recursive:true,force:true});await mkdir('dist/vendor',{recursive:true});
-for(const f of ['index.html','studio.css','demo','app'])await cp(f,'dist/'+f,{recursive:true});
+for(const f of ['index.html','studio.css','demo','app','images'])await cp(f,'dist/'+f,{recursive:true});
 await cp('node_modules/@mediapipe/tasks-vision/wasm','dist/vendor/wasm',{recursive:true});
 await copyFile('node_modules/@mediapipe/tasks-vision/vision_bundle.mjs','dist/vendor/vision.mjs');
 await copyFile(model,'dist/vendor/pose.task');

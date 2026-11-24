@@ -1,79 +1,613 @@
-import {goals,cues,choose,settle} from './coach.js';
-import {frame,overlay} from './view.js';
-const $=id=>document.getElementById(id),video=$('source'),picture=$('photo'),guide=$('guide');
-const ctx=picture.getContext('2d'),ink=guide.getContext('2d'),sample=document.createElement('canvas');
-const sampleCtx=sample.getContext('2d');
-let session=0,stream,worker,busy=false,face='environment',mirrored=false,raf,last=0,tracking,skipPose=false,recorder,clipStream,timeout,url,ready=false,opening=false,exposureBase=null;
-let stable={current:'search'};
-function goal(){return $('goal').value}
-function size(){const [w,h]=goals[goal()];picture.height=guide.height=960;picture.width=guide.width=960*w/h;sample.height=320;sample.width=Math.round(320*w/h);$('frame').style.aspectRatio=w+'/'+h}
-function controls(){const live=!!stream, recording=recorder?.state==='recording';
- $('flip').disabled=!live||recording;$('stop').disabled=!live&&!opening;$('goal').disabled=!!recording||opening;
- $('capture').disabled=!live||!ready||(goal()==='Video'&&(!window.MediaRecorder||!picture.captureStream));
- $('capture').className=recording?'record movie':goal()==='Video'?'movie':'';
- $('capture').ariaLabel=goal()==='Video'?(recording?'Stop recording':'Record video'):'Take photo';
- $('badge').textContent=recording?'RECORDING':live?'LIVE CAMERA':'CAMERA OFF';$('start').disabled=opening;
+import { goals, cues, choose, settle, crop } from "./coach.js";
+import { measure, compare, sceneCue } from "./scout.js";
+import { poseList, poseSvg } from "./poses.js";
+import { frame } from "./view.js";
+const $ = (id) => document.getElementById(id),
+  video = $("source"),
+  picture = $("photo");
+const ctx = picture.getContext("2d"),
+  sample = document.createElement("canvas");
+const sampleCtx = sample.getContext("2d");
+let session = 0,
+  stream,
+  worker,
+  busy = false,
+  face = "environment",
+  mirrored = false,
+  raf,
+  last = 0,
+  tracking,
+  skipPose = false,
+  recorder,
+  clipStream,
+  timeout,
+  url,
+  ready = false,
+  opening = false,
+  exposureBase = null;
+let stable = { current: "search" };
+function goal() {
+  return $("goal").value;
 }
-function cue(){
- const key=stable.current,active=!!stream&&$('coach').checked&&tracking;
- $('heading').textContent=active?cues[key][0]:goal()+' session';
- $('hint').textContent=active?cues[key][1]:stream?'Frame your shot and tap the shutter.':'Your camera feed stays on this device.';
- $('pose').hidden=!(active&&key==='pose');
- const caps=stream?.getVideoTracks()[0]?.getCapabilities?.();
- $('expose').hidden=!(active&&key==='light'&&caps?.exposureCompensation)||exposureBase!==null;
- overlay(ink,active?tracking:null,key);
+function size() {
+  const [w, h] = goals[goal()];
+  picture.height = 720;
+  picture.width = Math.round((720 * w) / h);
+  sample.height = 320;
+  sample.width = Math.round((320 * w) / h);
+  $("frame").style.aspectRatio = w + "/" + h;
+  $("frame").style.setProperty("--ratio", w / h);
 }
-function clearWorker(){worker?.terminate();worker=null;tracking=null;busy=false;stable={current:'search'};cue()}
-function track(){
- clearWorker();if(!stream||!$('coach').checked)return;
- let local;
- function failed(){if(worker!==local)return;clearWorker();$('health').textContent='Tracking unavailable. You can still capture or try the walkthrough.'}
- try{local=new Worker(new URL('./tracker.js',import.meta.url));worker=local;
- $('health').textContent='Loading on-device coach…';local.onerror=failed;local.onmessage=({data})=>{
- if(worker!==local)return;if(data.error){failed();return}
- if(data.ready){busy=false;$('health').textContent='On-device coaching active';return}
- busy=false;tracking=data;
- settle(stable,choose({nose:data.points?.[0],left:data.points?.[11],right:data.points?.[12],backlit:data.backlit,mirrored,skipPose}),performance.now());cue()};
- busy=true;local.postMessage({init:true})}catch{failed()}
+function controls() {
+  const live = !!stream || !!sampleImage,
+    recording = recorder?.state === "recording";
+  $("flip").disabled = !stream || recording;
+  $("stop").disabled = !live && !opening;
+  $("goal").disabled = !!recording || opening;
+  $("capture").disabled =
+    !live ||
+    !ready ||
+    (goal() === "Video" && (!window.MediaRecorder || !picture.captureStream));
+  $("capture").className = recording
+    ? "record movie"
+    : goal() === "Video"
+      ? "movie"
+      : "";
+  $("capture").ariaLabel =
+    goal() === "Video"
+      ? recording
+        ? "Stop recording"
+        : "Record video"
+      : "Take photo";
+  $("badge").textContent = recording
+    ? "RECORDING"
+    : sampleImage
+      ? "SAMPLE VIEW"
+      : live
+        ? "LIVE CAMERA"
+        : "CAMERA OFF";
+  $("start").disabled = opening;
 }
-async function analyze(time){const target=worker;busy=true;last=time;
- try{sampleCtx.drawImage(picture,0,0,sample.width,sample.height);const bitmap=await createImageBitmap(sample);
- if(target!==worker){bitmap.close();return}target.postMessage({bitmap,time},[bitmap])}catch{if(target===worker){clearWorker();$('health').textContent='Coaching unavailable on this browser. Camera capture is available.'}}}
-function draw(time){if(!stream)return;if(video.readyState>=2&&video.videoWidth){frame(ctx,video,mirrored);
- if(!ready){ready=true;controls()}if(worker&&!busy&&time-last>=150)analyze(time)}raf=requestAnimationFrame(draw)}
-function stop(){
- session++;opening=false;clearTimeout(timeout);if(recorder?.state==='recording')recorder.stop();cancelAnimationFrame(raf);
- stream?.getTracks().forEach(t=>t.stop());stream=null;ready=false;video.srcObject=null;clearWorker();ctx.clearRect(0,0,picture.width,picture.height);
- $('intro').hidden=false;$('health').textContent='Camera is off.';exposureBase=null;controls();
+let sampleImage = null,
+  sampleIndex = 0,
+  sampleVersion = 0,
+  selectedPose = 0,
+  subject = null,
+  metrics = null,
+  views = [],
+  chosen = null;
+let posePicked = false;
+const isPlace = () => ["Space", "Detail"].includes(goal());
+const active = () => !!stream || !!sampleImage;
+function cue() {
+  const place = isPlace(),
+    on = active() && $("coach").checked;
+  const key = stable.current;
+  const compareText =
+    views.length === 2 ? compare(views[0].metrics, views[1].metrics) : null;
+  let title = goal() + " session",
+    hint = "Your camera feed stays on this device.";
+  if (on && place) {
+    title =
+      views.length === 2
+        ? "Choose your viewpoint"
+        : views.length === 1 && !subject
+          ? "Tap the same subject"
+          : !subject
+            ? "Tap your subject"
+            : views.length === 2
+              ? "Choose your viewpoint"
+              : views.length
+                ? "Find a second angle"
+                : "Explore this angle";
+    hint = compareText
+      ? (compareText.pick === null
+          ? ""
+          : "Angle " + "AB"[compareText.pick] + ": ") + compareText.reason
+      : !subject
+        ? "Tap the detail you want to keep in the frame."
+        : metrics
+          ? sceneCue(goal(), metrics)
+          : "Keep the subject in the target.";
+  } else if (on) {
+    title =
+      tracking && ["back", "light", "left", "right", "search"].includes(key)
+        ? cues[key][0]
+        : poseList[selectedPose].name;
+    hint =
+      tracking && ["back", "light", "left", "right", "search"].includes(key)
+        ? cues[key][1]
+        : poseList[selectedPose].tip;
+  } else if (active()) hint = "Frame the shot and tap the shutter.";
+  $("heading").textContent = title;
+  $("hint").textContent = hint;
+  $("inframe").hidden = !on;
+  $("inframe").textContent = title;
+  $("scout").hidden = !on || !place;
+  $("angle").hidden = views.length === 2;
+  $("angle").disabled = !metrics || !subject;
+  $("angle").textContent = views.length ? "Save angle B" : "Save angle A";
+  $("clearAngles").hidden = !views.length;
+  $("sampleNext").hidden = !sampleImage || !place;
+  $("poses").hidden = !on || place;
+  $("pose").hidden = !on || place;
+  $("pose").textContent = skipPose ? "Show pose guide" : "Hide pose guide";
+  $("poseGuide").hidden = !on || place || skipPose;
+  $("target").hidden = !on || !place || !subject;
+  $("ghost").hidden = !on || chosen === null;
+  const caps = stream?.getVideoTracks()[0]?.getCapabilities?.();
+  const adjustment =
+    place && metrics
+      ? metrics.clipped > 0.18
+        ? metrics.brightness > 150
+          ? -1
+          : 1
+        : 0
+      : tracking?.backlit
+        ? 1
+        : 0;
+  $("expose").dataset.direction = String(adjustment);
+  $("expose").textContent =
+    exposureBase !== null
+      ? "Reset exposure"
+      : adjustment < 0
+        ? "Protect highlights"
+        : "Lift exposure";
+  $("expose").hidden =
+    !on ||
+    !caps?.exposureCompensation ||
+    (!adjustment && exposureBase === null);
 }
-async function start(){
- stop();const token=session;opening=true;$('message').textContent='';controls();
- try{if(!navigator.mediaDevices?.getUserMedia)throw Error('Open this app over HTTPS in Safari or Chrome.');
- const input=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:face},width:{ideal:1280},height:{ideal:960}}});
- if(token!==session){input.getTracks().forEach(t=>t.stop());return}
- stream=input;const t=input.getVideoTracks()[0];mirrored=(t.getSettings().facingMode||face)==='user';
- t.onended=()=>{if(token===session){stop();$('message').textContent='Camera disconnected. Start again to reconnect.'}};
- video.srcObject=input;await video.play();if(token!==session)return;
- $('intro').hidden=true;opening=false;skipPose=false;controls();track();draw(performance.now());
- }catch(e){if(token!==session)return;stop();$('message').textContent=e.name==='NotAllowedError'?'Camera access was declined. Allow camera access in your browser and tap Start camera again.':e.name==='NotFoundError'?'No camera found. Connect a camera or try the walkthrough.':e.message}
+function clearAngles() {
+  subject = null;
+  metrics = null;
+  views = [];
+  chosen = null;
+  $("choices").replaceChildren();
+  $("ghost").removeAttribute("src");
+  cue();
 }
-function review(blob,isVideo){if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(blob);
- const el=$(isVideo?'clip':'still');$('clip').hidden=!isVideo;$('still').hidden=isVideo;el.src=url;
- $('save').href=url;$('save').download='stillroom.'+(isVideo?(blob.type.includes('mp4')?'mp4':'webm'):'jpg');$('review').showModal()}
-function capture(){if(!ready)return;const token=session;
- if(goal()!=='Video'){picture.toBlob(b=>{if(b&&token===session&&!$('review').open)review(b,false)},'image/jpeg',.94);return}
- if(recorder?.state==='recording'){recorder.stop();return}
- try{clipStream=picture.captureStream(24);const output=clipStream;const rec=new MediaRecorder(output);recorder=rec;const chunks=[];
- rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
- rec.onstop=()=>{clearTimeout(timeout);output.getTracks().forEach(t=>t.stop());recorder=null;controls();if(token===session&&chunks.length)review(new Blob(chunks,{type:rec.mimeType||chunks[0].type}),true)};
- rec.start();timeout=setTimeout(()=>{if(rec.state==='recording')rec.stop()},15000);controls();
- }catch{clipStream?.getTracks().forEach(t=>t.stop());$('message').textContent='Video recording is unavailable in this browser. Choose a photo goal.'}}
-$('start').onclick=start;$('flip').onclick=()=>{face=mirrored?'environment':'user';start()};$('stop').onclick=stop;$('capture').onclick=capture;
-$('goal').onchange=()=>{skipPose=false;size();track();controls();$('message').textContent=goal()==='Video'?'Silent video · up to 15 seconds.':''};
-$('pose').onclick=()=>{skipPose=true;stable.current='ready';cue()};$('coach').onchange=()=>{track();if(!$('coach').checked)$('health').textContent='Visual coaching paused.'};
-$('expose').onclick=async()=>{const t=stream?.getVideoTracks()[0];if(!t)return;const token=session,c=t.getCapabilities().exposureCompensation,base=t.getSettings().exposureCompensation;
- if(!Number.isFinite(base))return;const target=Math.min(c.max,base+Math.max(c.step||.33,.33));
- try{await t.applyConstraints({advanced:[{exposureCompensation:target}]});if(token!==session)return;
- const applied=t.getSettings().exposureCompensation>base;exposureBase=applied?base:null;$('message').textContent=applied?'Exposure increased for this camera session.':'Camera retained its current exposure.';cue()}catch{if(token===session)$('message').textContent='This camera retained automatic exposure.'}};
-$('again').onclick=()=>$('review').close();$('review').onclose=()=>{$('clip').pause();$('clip').removeAttribute('src');$('still').removeAttribute('src');URL.revokeObjectURL(url);url=null};
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&(stream||opening))stop()});window.addEventListener('pagehide',stop);size();controls();
+function pickView(index) {
+  chosen = index;
+  $("ghost").src = views[index].src;
+  [...$("choices").children].forEach((el, i) =>
+    el.setAttribute("aria-pressed", i === index),
+  );
+  $("message").textContent =
+    "Use the faint reference to return to this framing.";
+  cue();
+}
+function readMetrics() {
+  if (!subject || !ready) return null;
+  sampleCtx.drawImage(picture, 0, 0, sample.width, sample.height);
+  return measure(
+    sampleCtx.getImageData(0, 0, sample.width, sample.height),
+    subject,
+  );
+}
+$("angle").onclick = () => {
+  if (views.length >= 2 || !subject) return;
+  const measured = readMetrics();
+  if (!measured) return;
+  views.push({ metrics: measured, src: sample.toDataURL("image/jpeg", 0.82) });
+  if (views.length === 1) {
+    subject = null;
+    metrics = null;
+    $("message").textContent =
+      "Move the phone, then tap the same subject again.";
+  } else {
+    views.forEach(({ src }, i) => {
+      const b = document.createElement("button"),
+        im = new Image();
+      im.src = src;
+      im.alt = "";
+      b.append(im, "Angle " + "AB"[i]);
+      b.onclick = () => pickView(i);
+      $("choices").append(b);
+    });
+    $("message").textContent = "Choose a thumbnail to overlay its framing.";
+  }
+  cue();
+};
+function setSubject(x, y) {
+  subject = { x, y };
+  $("target").style.left = x * 100 + "%";
+  $("target").style.top = y * 100 + "%";
+  metrics = readMetrics();
+  cue();
+}
+picture.tabIndex = 0;
+picture.setAttribute(
+  "aria-label",
+  "Viewfinder. Tap a subject or press Enter to select the centre.",
+);
+picture.onclick = (e) => {
+  if (active() && isPlace()) {
+    const r = picture.getBoundingClientRect();
+    setSubject((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  }
+};
+picture.onkeydown = (e) => {
+  if (e.key === "Enter" && active() && isPlace()) setSubject(0.5, 0.5);
+};
+$("clearAngles").onclick = () => {
+  clearAngles();
+  $("message").textContent = "";
+};
+function selectPose(index, user = false) {
+  if (user) posePicked = true;
+  selectedPose = index;
+  skipPose = false;
+  $("poseGuide").innerHTML = poseSvg(index);
+  [...$("poses").children].forEach((b, i) =>
+    b.setAttribute("aria-pressed", i === index),
+  );
+  cue();
+}
+poseList.forEach(({ name }, i) => {
+  const b = document.createElement("button");
+  b.innerHTML = poseSvg(i);
+  b.append(name);
+  b.onclick = () => selectPose(i, true);
+  $("poses").append(b);
+});
+async function practice() {
+  const version = ++sampleVersion,
+    token = session,
+    im = new Image();
+  im.src = isPlace()
+    ? "images/cafe-" + sampleIndex + ".jpg"
+    : "demo/portrait.jpg";
+  try {
+    await im.decode();
+  } catch {
+    if (version === sampleVersion)
+      $("message").textContent = "Sample could not load. Try the camera.";
+    return;
+  }
+  if (token !== session || version !== sampleVersion || stream) return;
+  sampleImage = im;
+  ready = true;
+  frame(ctx, im, false);
+  $("intro").hidden = true;
+  $("health").textContent = "Practice session with a sample photograph.";
+  controls();
+  cue();
+}
+$("practice").onclick = () => {
+  stop();
+  practice();
+};
+$("sampleNext").onclick = () => {
+  sampleIndex = 1 - sampleIndex;
+  subject = null;
+  metrics = null;
+  practice();
+};
+function clearWorker() {
+  worker?.terminate();
+  worker = null;
+  tracking = null;
+  busy = false;
+  stable = { current: "search" };
+  cue();
+}
+function track() {
+  clearWorker();
+  if (!stream || !$("coach").checked) return;
+  if (isPlace()) {
+    $("health").textContent = "Viewpoint comparison runs on this device.";
+    return;
+  }
+  let local;
+  function failed() {
+    if (worker !== local) return;
+    clearWorker();
+    $("health").textContent =
+      "Tracking unavailable. You can still capture or try the walkthrough.";
+  }
+  try {
+    local = new Worker(new URL("./tracker.js", import.meta.url));
+    worker = local;
+    $("health").textContent = "Loading on-device coach…";
+    local.onerror = failed;
+    local.onmessage = ({ data }) => {
+      if (worker !== local) return;
+      if (data.error) {
+        failed();
+        return;
+      }
+      if (data.ready) {
+        busy = false;
+        $("health").textContent = "On-device coaching active";
+        return;
+      }
+      busy = false;
+      tracking = data;
+      if (data.points && !posePicked) {
+        const p = data.points;
+        const index =
+          goal() === "Social" && p[23].visibility > 0.65
+            ? 1
+            : goal() === "Portrait" && Math.abs(p[11].z - p[12].z) > 0.18
+              ? 2
+              : 0;
+        selectPose(index);
+        posePicked = true;
+      }
+      settle(
+        stable,
+        choose({
+          nose: data.points?.[0],
+          left: data.points?.[11],
+          right: data.points?.[12],
+          backlit: data.backlit,
+          mirrored,
+          skipPose,
+        }),
+        performance.now(),
+      );
+      cue();
+    };
+    busy = true;
+    local.postMessage({ init: true });
+  } catch {
+    failed();
+  }
+}
+async function analyze(time) {
+  const target = worker;
+  busy = true;
+  last = time;
+  try {
+    sampleCtx.drawImage(picture, 0, 0, sample.width, sample.height);
+    const bitmap = await createImageBitmap(sample);
+    if (target !== worker) {
+      bitmap.close();
+      return;
+    }
+    target.postMessage({ bitmap, time }, [bitmap]);
+  } catch {
+    if (target === worker) {
+      clearWorker();
+      $("health").textContent =
+        "Coaching unavailable on this browser. Camera capture is available.";
+    }
+  }
+}
+function draw(time) {
+  if (!stream) return;
+  if (video.readyState >= 2 && video.videoWidth) {
+    frame(ctx, video, mirrored);
+    if (!ready) {
+      ready = true;
+      controls();
+    }
+    if (worker && !busy && time - last >= 150) analyze(time);
+    else if (isPlace() && subject && $("coach").checked && time - last >= 650) {
+      last = time;
+      metrics = readMetrics();
+      cue();
+    }
+  }
+  raf = requestAnimationFrame(draw);
+}
+function stop() {
+  session++;
+  sampleVersion++;
+  sampleImage = null;
+  clearAngles();
+  opening = false;
+  clearTimeout(timeout);
+  if (recorder?.state === "recording") recorder.stop();
+  cancelAnimationFrame(raf);
+  stream?.getTracks().forEach((t) => t.stop());
+  stream = null;
+  ready = false;
+  video.srcObject = null;
+  clearWorker();
+  ctx.clearRect(0, 0, picture.width, picture.height);
+  $("intro").hidden = false;
+  $("health").textContent = "Camera is off.";
+  exposureBase = null;
+  controls();
+}
+async function start() {
+  stop();
+  const token = session;
+  opening = true;
+  $("message").textContent = "";
+  controls();
+  try {
+    if (!navigator.mediaDevices?.getUserMedia)
+      throw Error("Open this app over HTTPS in Safari or Chrome.");
+    const input = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: face },
+        width: { ideal: 3840 },
+        height: { ideal: 2160 },
+      },
+    });
+    if (token !== session) {
+      input.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    stream = input;
+    const t = input.getVideoTracks()[0];
+    mirrored = (t.getSettings().facingMode || face) === "user";
+    t.onended = () => {
+      if (token === session) {
+        stop();
+        $("message").textContent =
+          "Camera disconnected. Start again to reconnect.";
+      }
+    };
+    video.srcObject = input;
+    await video.play();
+    if (token !== session) return;
+    $("intro").hidden = true;
+    opening = false;
+    skipPose = false;
+    controls();
+    track();
+    draw(performance.now());
+  } catch (e) {
+    if (token !== session) return;
+    stop();
+    $("message").textContent =
+      e.name === "NotAllowedError"
+        ? "Camera access was declined. Allow camera access in your browser and tap Start camera again."
+        : e.name === "NotFoundError"
+          ? "No camera found. Connect a camera or try the walkthrough."
+          : e.message;
+  }
+}
+function review(blob, isVideo) {
+  if (url) URL.revokeObjectURL(url);
+  url = URL.createObjectURL(blob);
+  if (isVideo) $("dimensions").textContent = "Silent clip";
+  const el = $(isVideo ? "clip" : "still");
+  $("clip").hidden = !isVideo;
+  $("still").hidden = isVideo;
+  el.src = url;
+  $("save").href = url;
+  $("save").download =
+    "stillroom." +
+    (isVideo ? (blob.type.includes("mp4") ? "mp4" : "webm") : "jpg");
+  $("review").showModal();
+}
+function capture() {
+  if (!ready) return;
+  const token = session;
+  if (goal() !== "Video") {
+    const source = sampleImage || video;
+    const r = crop(
+      source.naturalWidth || source.videoWidth,
+      source.naturalHeight || source.videoHeight,
+      picture.width / picture.height,
+    );
+    const full = document.createElement("canvas");
+    full.width = Math.max(1, Math.round(r.w));
+    full.height = Math.max(1, Math.round(r.h));
+    frame(full.getContext("2d"), source, !!stream && mirrored);
+    $("dimensions").textContent = full.width + " × " + full.height + " px";
+    full.toBlob(
+      (b) => {
+        if (b && token === session && !$("review").open) review(b, false);
+      },
+      "image/jpeg",
+      0.94,
+    );
+    return;
+  }
+  if (sampleImage) {
+    $("message").textContent = "Start a live camera session to record video.";
+    return;
+  }
+  if (recorder?.state === "recording") {
+    recorder.stop();
+    return;
+  }
+  try {
+    clipStream = picture.captureStream(24);
+    const output = clipStream;
+    const rec = new MediaRecorder(output);
+    recorder = rec;
+    const chunks = [];
+    rec.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
+    rec.onstop = () => {
+      clearTimeout(timeout);
+      output.getTracks().forEach((t) => t.stop());
+      recorder = null;
+      controls();
+      if (token === session && chunks.length)
+        review(
+          new Blob(chunks, { type: rec.mimeType || chunks[0].type }),
+          true,
+        );
+    };
+    rec.start();
+    timeout = setTimeout(() => {
+      if (rec.state === "recording") rec.stop();
+    }, 15000);
+    controls();
+  } catch {
+    clipStream?.getTracks().forEach((t) => t.stop());
+    $("message").textContent =
+      "Video recording is unavailable in this browser. Choose a photo goal.";
+  }
+}
+$("start").onclick = start;
+$("flip").onclick = () => {
+  face = mirrored ? "environment" : "user";
+  start();
+};
+$("stop").onclick = stop;
+$("capture").onclick = capture;
+$("goal").onchange = () => {
+  skipPose = false;
+  posePicked = false;
+  selectPose(goal() === "Social" ? 1 : 0);
+  clearAngles();
+  size();
+  if (sampleImage) practice();
+  track();
+  controls();
+  $("message").textContent =
+    goal() === "Video" ? "Silent video · up to 15 seconds." : "";
+};
+$("pose").onclick = () => {
+  skipPose = !skipPose;
+  cue();
+};
+$("coach").onchange = () => {
+  track();
+  if (!$("coach").checked) $("health").textContent = "Visual coaching paused.";
+};
+$("expose").onclick = async () => {
+  const t = stream?.getVideoTracks()[0];
+  if (!t) return;
+  const token = session,
+    c = t.getCapabilities().exposureCompensation,
+    base = t.getSettings().exposureCompensation;
+  if (!Number.isFinite(base)) return;
+  const reset = exposureBase !== null,
+    dir = Number($("expose").dataset.direction);
+  const steps = Math.max(1, Math.round(0.33 / (c.step || 0.33)));
+  const target = reset
+    ? exposureBase
+    : Math.min(c.max, Math.max(c.min, base + dir * steps * (c.step || 0.33)));
+  try {
+    await t.applyConstraints({ advanced: [{ exposureCompensation: target }] });
+    if (token !== session) return;
+    const value = t.getSettings().exposureCompensation;
+    if (Math.abs(value - target) < 0.06 && value !== base) {
+      exposureBase = reset ? null : base;
+      $("message").textContent = reset
+        ? "Original exposure restored."
+        : "Exposure adjusted.";
+    } else $("message").textContent = "Camera retained its current exposure.";
+    cue();
+  } catch {
+    if (token === session)
+      $("message").textContent = "Exposure adjustment unavailable.";
+  }
+};
+$("again").onclick = () => $("review").close();
+$("review").onclose = () => {
+  $("clip").pause();
+  $("clip").removeAttribute("src");
+  $("still").removeAttribute("src");
+  URL.revokeObjectURL(url);
+  url = null;
+};
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && (stream || opening)) stop();
+});
+window.addEventListener("pagehide", stop);
+size();
+controls();
+selectPose(0);
