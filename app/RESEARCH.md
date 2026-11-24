@@ -11,3 +11,5 @@
 **Attribution.** Body coordinates are adapted from COCO 2017 annotations, © COCO Consortium, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes include filtering, diversity sampling, normalization, rounding and rendering. Reference IDs identify the original annotations. COCO photographs are excluded. [Dataset terms](https://cocodataset.org/dataset/termsofuse.htm)
 
 **Rebuild.** Extract person_keypoints_val2017.json from the official train/val annotation archive and run `python3 scripts/import_poses.py /path/to/person_keypoints_val2017.json`. Ranking weights, tolerances and frame scores are product heuristics, pending blind evaluation.
+
+The seated window reference is a cropped version of [Pexels photo 842567](https://www.pexels.com/photo/842567/), used under the [Pexels License](https://www.pexels.com/license/). Close upper-body framing selects this reference. The coach cannot reliably infer sitting from a chest-up crop.

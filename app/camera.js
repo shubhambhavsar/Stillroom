@@ -145,86 +145,50 @@ $("assist").onchange = () => {
 };
 const isPlace = () => ["Space", "Detail"].includes(goal());
 const active = () => !!stream || !!sampleImage;
-function cue() {
-  const place = isPlace(),
-    on = active() && $("coach").checked;
-  const key = stable.current;
-  const compareText =
-    views.length === 2 ? compare(views[0].metrics, views[1].metrics) : null;
-  let title = goal() + " session",
-    hint = "Your camera feed stays on this device.";
-  if (on && place) {
-    if (compareText) {
-      title = "Choose your viewpoint";
-      hint =
-        (compareText.pick === null
-          ? ""
-          : "Angle " + "AB"[compareText.pick] + ": ") + compareText.reason;
-    } else if (!subject) {
-      title = views.length
-        ? "Tap the same subject"
-        : "Tap what caught your eye";
-      hint =
-        "Tap it once, then keep it in the ring as you explore a small arc.";
-    } else if (director) {
-      [title, hint] = proposeAngle($("intent").value, director);
-      if (bestView && quality(director) < bestView.value - 0.05) {
-        title = "Your earlier angle was stronger";
-        hint =
-          "Tap Show strongest view and line up the reference to return to it.";
-      }
-    } else {
-      title = "Hold your subject in the ring";
-      hint = "Checking the light and background.";
-    }
-  } else if (on) {
-    [title, hint] = poseDirection(reference, goal());
-    if (tracking && ["back", "light", "left", "right", "search"].includes(key))
-      [title, hint] = cues[key];
-  } else if (active()) hint = "Frame the shot and tap the shutter.";
-  $("heading").textContent = title;
-  $("hint").textContent = hint;
-  $("inframe").hidden = !on;
-  $("inframe").textContent = title;
-  $("scout").hidden = !on || !place;
-  $("angle").hidden = views.length === 2;
-  $("angle").disabled = !metrics || !subject;
-  $("angle").textContent = views.length ? "Save angle B" : "Save angle A";
-  $("clearAngles").hidden = !views.length;
-  $("sampleNext").hidden = !sampleImage || !place;
-  $("poses").hidden = !on || place;
-  $("pose").hidden = !on || place;
-  $("pose").textContent = skipPose ? "Show pose guide" : "Hide pose guide";
-  $("poseGuide").hidden = !on || place || skipPose;
-  $("target").hidden = !on || !place || !subject;
-  $("ghost").hidden = !on || (chosen === null && !showBest);
-  $("best").hidden = !on || !place || !bestView;
-  $("best").textContent = showBest ? "Hide reference" : "Show strongest view";
-  const caps = stream?.getVideoTracks()[0]?.getCapabilities?.();
-  const adjustment =
-    place && metrics
-      ? metrics.clipped > 0.18
-        ? metrics.brightness > 150
-          ? -1
-          : 1
-        : 0
-      : tracking?.backlit
-        ? 1
-        : 0;
-  $("expose").dataset.direction = String(adjustment);
-  $("expose").textContent =
-    exposureBase !== null
-      ? "Reset exposure"
-      : adjustment < 0
-        ? "Protect highlights"
-        : "Lift exposure";
-  $("expose").hidden =
-    !on ||
-    $("assist").checked ||
-    !caps?.exposureCompensation ||
-    (!adjustment && exposureBase === null);
+let pending = "", since = 0, offered = "", alternative = false;
+const dismissed = new Set();
+let lastMetrics = 0;
+function resetGuidance() {
+  pending = offered = "";
+  alternative = false;
+  dismissed.clear();
 }
+function cue() {
+  const on = active() && ready && $("coach").checked;
+  const nose = !subject && tracking?.points?.[0];
+  const person = nose && nose.visibility > 0.65;
+  const upperBody = person && tracking.points[11]?.visibility > .65 && tracking.points[12]?.visibility > .65;
+  const closeCrop = upperBody && (tracking.points[23].y > .9 || tracking.points[23].visibility < .6);
+  const referencePath = closeCrop ? "images/seated-window.jpg" : "demo/portrait.jpg";
+  if ($("referencePhoto").getAttribute("src") !== referencePath) $("referencePhoto").src = referencePath;
+  let next = "";
+  if (person && (nose.x < .13 || nose.x > .87)) {
+    const left = (nose.x < .5) !== mirrored;
+    next = "Aim a little " + (left ? "left" : "right") + " to include the face.";
+  } else if (person && nose.y < .12) next = "Aim a little higher to leave room above the face.";
+  else if (person && tracking.backlit) next = "Turn slightly toward the light to brighten the face.";
+  else if (!person && director?.high > .2) next = "Shift sideways a little to reduce the bright patch.";
+  else if (alternative) next = person ? (closeCrop ? "Keep your shoulders relaxed and look just past the phone." : "Lift your chin slightly and look past the lens.") : "Step back to include more of the surroundings.";
+  if (next !== pending) { pending = next; since = performance.now(); }
+  offered = on && !dismissed.has(next) && (alternative || performance.now()-since >= 950) ? next : "";
+  $("inframe").textContent = offered;
+  $("dismiss").hidden = $("inframe").hidden = !offered;
+  $("target").hidden = !on || !subject;
+  $("creative").hidden = !on || !!next || alternative || (person && !upperBody);
+  $("creative").textContent = person ? "Try a portrait variation" : "Include the surroundings";
+  $("referencePhoto").hidden = !on || !alternative || !person;
+  const earlier = director && bestView && quality(director) < bestView.value-.06;
+  $("previous").hidden = !on || !(earlier || showBest);
+  if (earlier) $("previous").firstElementChild.src = bestView.src;
+  $("ghost").hidden = !showBest || !on;
+  $("sampleNext").hidden = !sampleImage;
+  $("scout").hidden = !sampleImage;
+}
+$("dismiss").onclick = () => { dismissed.add(offered); cue(); };
+$("creative").onclick = () => { alternative = true; cue(); };
+$("previous").onclick = () => $("best").click();
 function clearAngles() {
+  resetGuidance();
   subject = null;
   metrics = null;
   views = [];
@@ -260,15 +224,15 @@ function pickView(index) {
   cue();
 }
 function readMetrics() {
-  if (!subject || !ready) return null;
+  if (!ready) return null;
   sampleCtx.drawImage(picture, 0, 0, sample.width, sample.height);
   const pixels = sampleCtx.getImageData(0, 0, sample.width, sample.height);
-  director = analyzeView(pixels, subject);
+  director = analyzeView(pixels, subject || {x:.5,y:.5});
   if (!showBest)
     bestView = remember(bestView, director, () =>
       sample.toDataURL("image/jpeg", 0.8),
     );
-  return measure(pixels, subject);
+  return measure(pixels, subject || {x:.5,y:.5});
 }
 $("angle").onclick = () => {
   if (views.length >= 2 || !subject) return;
@@ -295,6 +259,9 @@ $("angle").onclick = () => {
   cue();
 };
 function setSubject(x, y) {
+  const alreadyDismissed = [...dismissed];
+  clearAngles();
+  alreadyDismissed.forEach(key => dismissed.add(key));
   subject = { x, y };
   $("target").style.left = x * 100 + "%";
   $("target").style.top = y * 100 + "%";
@@ -307,13 +274,13 @@ picture.setAttribute(
   "Viewfinder. Tap a subject or press Enter to select the centre.",
 );
 picture.onclick = (e) => {
-  if (active() && isPlace()) {
+  if (active()) {
     const r = picture.getBoundingClientRect();
     setSubject((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
   }
 };
 picture.onkeydown = (e) => {
-  if (e.key === "Enter" && active() && isPlace()) setSubject(0.5, 0.5);
+  if (e.key === "Enter" && active()) setSubject(0.5, 0.5);
 };
 $("clearAngles").onclick = () => {
   clearAngles();
@@ -354,8 +321,10 @@ async function practice() {
   frame(ctx, im, false);
   $("intro").hidden = true;
   $("health").textContent = "Practice session with a sample photograph.";
+  metrics = readMetrics();
   controls();
   cue();
+  setTimeout(cue, 1000);
 }
 $("practice").onclick = () => {
   stop();
@@ -378,10 +347,6 @@ function clearWorker() {
 function track() {
   clearWorker();
   if (!stream || !$("coach").checked) return;
-  if (isPlace()) {
-    $("health").textContent = "Viewpoint comparison runs on this device.";
-    return;
-  }
   let local;
   function failed() {
     if (worker !== local) return;
@@ -407,8 +372,7 @@ function track() {
       }
       busy = false;
       tracking = data;
-      if (data.points) {
-        updateReference(data.points, data.lightSide, performance.now());
+      if (data.points && !subject) {
         updateAssist({
           low: data.backlit ? 0.36 : 0,
           moving: data.moving,
@@ -464,10 +428,10 @@ function draw(time) {
       controls();
     }
     if (worker && !busy && time - last >= 150) analyze(time);
-    else if (isPlace() && subject && $("coach").checked && time - last >= 650) {
-      last = time;
+    if ($("coach").checked && time - lastMetrics >= 500) {
+      lastMetrics = time;
       metrics = readMetrics();
-      if (director) updateAssist(director);
+      if (director && (subject || !tracking?.points)) updateAssist(director);
       cue();
     }
   }
@@ -495,6 +459,7 @@ function stop() {
   $("intro").hidden = false;
   $("health").textContent = "Camera is off.";
   exposureBase = null;
+  cue();
   controls();
 }
 async function start() {
@@ -552,6 +517,7 @@ async function start() {
   }
 }
 function review(blob, isVideo) {
+  $("tryAlternative").hidden = isVideo || !!pending;
   if (url) URL.revokeObjectURL(url);
   url = URL.createObjectURL(blob);
   if (isVideo) $("dimensions").textContent = "Silent clip";
@@ -566,6 +532,7 @@ function review(blob, isVideo) {
   $("review").showModal();
 }
 function capture() {
+  resetGuidance();
   if (!ready) return;
   const token = session;
   if (goal() !== "Video") {
@@ -707,3 +674,7 @@ size();
 controls();
 renderReference();
 cue();
+
+start();
+
+$("tryAlternative").onclick = () => { $("review").close(); alternative = true; cue(); };

@@ -44,46 +44,15 @@ try {
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:8187");
-  await page.getByRole("button", { name: "Practice with samples" }).click();
-  await page.locator("#photo").press("Enter");
-  await page.getByRole("button", { name: "Show strongest view" }).click();
-  assert.equal(await page.locator("#ghost").isVisible(), true);
-  await page.getByRole("button", { name: "Hide reference" }).click();
-  await page.locator("#intent").selectOption("Layers");
-  await page.locator("#manual summary").click();
-  await page.getByRole("button", { name: "Save angle A" }).click();
-  await page.getByRole("button", { name: "Switch sample view" }).click();
-  await page.waitForTimeout(350);
-  await page.locator("#photo").press("Enter");
-  await page.getByRole("button", { name: "Save angle B" }).click();
-  await page.getByRole("button", { name: "Angle B", exact: true }).click();
-  assert.equal(await page.locator("#ghost").isVisible(), true);
-  await page.locator("#capture").click();
-  await page.locator("#still").waitFor();
-  await page.waitForFunction(
-    () => document.querySelector("#still").naturalWidth === 1024,
-  );
-  await page.locator("#again").click();
-  await page.locator("#stop").click();
-  await page.getByText("Start camera", { exact: true }).click();
-  await page.getByText("Viewpoint comparison runs on this device.").waitFor();
-  await page.locator("#goal").selectOption("Portrait");
-  await page.getByText("On-device coaching active").waitFor({ timeout: 45000 });
-  await page
-    .getByRole("button", { name: "Suggest a variation", exact: true })
-    .click();
-  const template = await page.locator("#poseGuide").innerHTML();
-  await page.waitForTimeout(1100);
-  assert.equal(await page.locator("#poseGuide").innerHTML(), template);
-  await page.getByRole("button", { name: "Hide pose guide" }).click();
+  await page.waitForFunction(() => !document.querySelector("#capture").disabled);
   assert.equal(await page.locator("#poseGuide").isVisible(), false);
-  for (const goal of ["Portrait", "Profile", "Social"]) {
-    await page.locator("#goal").selectOption(goal);
-    await page.getByRole("button", { name: "Take photo" }).click();
-    await page.locator("dialog[open] img").waitFor();
-    assert.match(await page.locator("#save").getAttribute("download"), /jpg$/);
-    await page.locator("#again").click();
-  }
+  await page.locator("#photo").press("Enter");
+  assert.equal(await page.locator("#target").isVisible(), true);
+  await page.locator("#capture").click();
+  await page.locator("dialog[open] img").waitFor();
+  assert.match(await page.locator("#save").getAttribute("download"), /jpg$/);
+  await page.locator("#again").click();
+  await page.locator("#info summary").first().click();
   await page.locator("#goal").selectOption("Video");
   await page.locator("#capture").click();
   await page.waitForTimeout(900);
@@ -114,7 +83,7 @@ try {
   await page.getByText(/Camera access was declined/).waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: café angle comparison, clean native-sized export, stable pose selection, three photo crops, playable silent video, session cleanup, narrow layout and denied permission.",
+    "PASS: camera-first capture, subject selection, photo review, video, session cleanup, narrow layout and denied permission.",
   );
 } finally {
   await browser?.close();

@@ -13,16 +13,6 @@
     <section class="studio">
       <div class="bar">
         <span id="badge">CAMERA OFF</span
-        ><label
-          >Shot goal
-          <select id="goal">
-            <option>Space</option>
-            <option>Detail</option>
-            <option>Portrait</option>
-            <option>Profile</option>
-            <option>Social</option>
-            <option>Video</option>
-          </select></label
         >
       </div>
       <div class="stage">
@@ -30,14 +20,14 @@
           <canvas id="photo"></canvas>
           <div id="poseGuide" hidden></div>
           <i id="target" hidden></i><img id="ghost" hidden alt="" /><span
-            id="inframe"
+            id="inframe" role="status"
             hidden
-          ></span>
+          ></span><button id="dismiss" hidden aria-label="Dismiss suggestion">×</button>
           <div class="intro" id="intro">
             <small>CAMERA STUDIO</small>
             <h1>Find your frame.</h1>
             <p>
-              Explore a place, photograph a detail, or get a pose recommendation.
+              Tap what you want to photograph.
             </p>
             <div class="entry">
               <button id="start">Start camera</button>
@@ -51,8 +41,18 @@
         ><button id="capture" disabled aria-label="Take photo"><b></b></button
         ><button id="stop" disabled>End</button>
       </div>
-    </section>
-    <aside>
+    <p id="message" role="status"></p></section>
+    <div id="alternatives"><button id="creative" hidden></button><button id="previous" hidden><img alt="Earlier framing"> Earlier view</button><img id="referencePhoto" hidden src="demo/portrait.jpg" alt="Portrait gaze reference"></div><details id="info"><summary>Camera info</summary><aside><label
+          >Capture format
+          <select id="goal">
+            <option>Space</option>
+            <option>Detail</option>
+            <option>Portrait</option>
+            <option>Profile</option>
+            <option>Social</option>
+            <option>Video</option>
+          </select></label
+        >
       <small>SHOT GUIDE</small>
       <h2 id="heading" aria-live="polite">Portrait session</h2>
       <p id="hint">Your camera feed stays on this device.</p>
@@ -76,8 +76,8 @@
       <label class="toggle"><input type="checkbox" id="assist" checked> Auto camera assist</label><p id="hardware" role="status"></p><details><summary>Photography sources</summary><a href="https://github.com/shubhambhavsar/Stillroom/blob/main/app/RESEARCH.md">Pose data, photography guidance and credits</a></details><p id="health" role="status">
         Camera permission is requested when you start.
       </p>
-      <p id="message" role="status"></p>
-    </aside>
+      
+    </aside></details>
   </main>
   <video id="source" muted autoplay playsinline hidden></video>
   <dialog id="review">
@@ -90,7 +90,7 @@
     ></video>
     <div>
       <button id="again">Back to camera</button
-      ><a id="save" download>Download</a>
+      ><button id="tryAlternative">Try a variation</button><a id="save" download>Download</a>
     </div>
   </dialog>
   <script type="module" src="app/camera.js"></script>
