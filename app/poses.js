@@ -1,43 +1,112 @@
-// Original, fixed pose templates. Coordinates are independent of detected landmarks.
-const poses = [
-  {
-    name: "Three-quarter",
-    tip: "Turn one shoulder toward the lens and let your near arm rest.",
-    head: [51, 22, -9],
-    body: "M44 32 Q37 34 33 42 L28 64 Q29 67 32 65 L40 49 L39 69 Q49 76 60 69 L61 48 L67 60 Q71 64 72 58 L64 39 Q61 33 56 32 M39 69 L36 95 M60 69 L65 95",
-  },
-  {
-    name: "Hand at waist",
-    tip: "Rest one hand at your waist and angle your elbow out.",
-    head: [49, 22, 6],
-    body: "M43 32 Q37 33 33 42 L22 54 Q20 57 24 60 L39 68 L42 63 L30 55 L40 45 L39 69 Q50 74 61 69 L61 46 L67 70 L72 69 L66 40 Q62 34 55 32 M39 69 L37 95 M61 69 L65 95",
-  },
-  {
-    name: "Look back",
-    tip: "Turn your body slightly away and look back over your shoulder.",
-    head: [54, 23, 15],
-    body: "M48 32 Q41 34 37 42 L31 62 L35 65 L43 49 L40 70 Q49 74 58 70 L60 46 L65 61 L69 59 L63 38 Q60 33 56 33 M40 70 L36 95 M58 70 L61 95",
-  },
+import { references } from "./pose-data.js";
+const joints = [0, 2, 5, 7, 8, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+const bones = [
+  [5, 6],
+  [5, 7],
+  [7, 9],
+  [6, 8],
+  [8, 10],
+  [5, 11],
+  [6, 12],
+  [11, 12],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
 ];
-export const poseList = poses;
-export function poseSvg(index) {
-  const {
-    head: [x, y, angle],
-    body,
-  } = poses[index];
+export function rankPoses(live, goal, lightSide = 0, aspect = 0.75) {
+  const seen = (i) => live?.[joints[i]]?.visibility > 0.65;
+  const width =
+    seen(5) && seen(6)
+      ? Math.max(0.035, Math.abs(live[11].x - live[12].x) * aspect)
+      : 0.25;
+  return references
+    .map(([id, p]) => {
+      const span = Math.max(5, Math.abs(p[5][0] - p[6][0]));
+      let error = 0,
+        n = 0;
+      for (const k of [0, 7, 8, 9, 10, 11, 12, 13, 14]) {
+        if (!seen(k) || !seen(5) || !p[k]) continue;
+        const v = live[joints[k]],
+          base = live[11];
+        const dx =
+          Math.abs(((v.x - base.x) * aspect) / width) -
+          Math.abs((p[k][0] - p[5][0]) / span);
+        const dy = (v.y - base.y) / width - (p[k][1] - p[5][1]) / span;
+        error += Math.min(4, Math.hypot(dx, dy));
+        n++;
+      }
+      const head = (p[0][0] - (p[5][0] + p[6][0]) / 2) / span;
+      const hand = Math.min(p[9][1], p[10][1]) - (p[11][1] + p[12][1]) / 2;
+      const style =
+        goal === "Profile"
+          ? Math.abs(head) * 1.2
+          : goal === "Social"
+            ? Math.abs(hand + 5) * 0.014
+            : Math.abs(hand) * 0.012;
+      const score =
+        (n ? error / n : 0) +
+        style +
+        (lightSide && head * lightSide < -0.12 ? 0.35 : 0);
+      return { id, p, score, head, hand };
+    })
+    .sort((a, b) => a.score - b.score || a.id - b.id);
+}
+export function poseDirection(ref, goal) {
+  if (goal === "Profile")
+    return Math.abs(ref.head) > 0.16
+      ? [
+          "Turn your face slightly",
+          "Match the head direction in the reference and keep your eyes toward the lens.",
+        ]
+      : ["Meet the lens", "Bring the camera to eye level and relax your jaw."];
+  const { p } = ref;
+  const high = p[9][1] < p[10][1] ? 9 : 10;
+  if (p[high][1] < p[5][1] + 7)
+    return [
+      "Bring one hand up",
+      "Follow the bent arm in the guide, keeping your fingers relaxed.",
+    ];
+  if (ref.hand < 5)
+    return [
+      "Give one arm a bend",
+      "Bring one hand near your waist and relax the other shoulder.",
+    ];
+  return [
+    "Let your arms fall naturally",
+    "Ease your shoulders and match the slight turn in the guide.",
+  ];
+}
+export function poseSvg(ref, goal) {
+  const p = ref.p;
+  const visible =
+    goal === "Profile"
+      ? [0, 5, 6]
+      : goal === "Portrait"
+        ? [0, 5, 6, 7, 8, 9, 10, 11, 12]
+        : p.map((_, i) => i);
+  const pts = visible.map((i) => p[i]).filter(Boolean),
+    xs = pts.map((v) => v[0]),
+    ys = pts.map((v) => v[1]);
+  const minX = Math.min(...xs) - 8,
+    minY = Math.min(...ys) - 11,
+    w = Math.max(...xs) - minX + 8,
+    h = Math.max(...ys) - minY + 9;
+  const lines = bones
+    .filter(([a, b]) => p[a] && p[b])
+    .map(
+      ([a, b]) => '<path d="M' + p[a].join(" ") + " L" + p[b].join(" ") + '"/>',
+    )
+    .join("");
   return (
-    '<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"><ellipse cx="' +
-    x +
+    '<svg aria-hidden="true" viewBox="' +
+    [minX, minY, w, h].join(" ") +
+    '"><g fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round">' +
+    lines +
+    '<ellipse cx="' +
+    p[0][0] +
     '" cy="' +
-    y +
-    '" rx="7" ry="10" transform="rotate(' +
-    angle +
-    " " +
-    x +
-    " " +
-    y +
-    ')"/><path d="' +
-    body +
-    '"/></g></svg>'
+    (p[0][1] - 1) +
+    '" rx="5" ry="7"/></g></svg>'
   );
 }

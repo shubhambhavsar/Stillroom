@@ -5,10 +5,10 @@ An on-device camera coach for choosing where to stand, how to frame a subject an
 
 | Delivered | Validate on phones | Later |
 |---|---|---|
-| Tap a subject, compare two observed angles, fixed selectable pose templates, exposure assist with reset on supporting cameras, source-frame photo export and silent video | Tracking delay, cue direction, exposure compensation, export, heat | Audio, pose catalogue, native camera controls |
+| Tap a subject, receive angle guidance, recall the strongest sampled frame, 96 dataset-derived pose references ranked on device, verified automatic exposure assist on supporting cameras, source-frame photo export and silent video | Tracking delay, cue direction, exposure compensation, export, heat | Audio, pose catalogue, native camera controls |
 
 **Flow**  
-Choose Space or Detail → start camera or practice with café samples → tap the same subject in two viewpoints → compare → capture. In Portrait, Profile or Social, select a fixed pose card.
+Choose Space or Detail → start camera or practice with café samples → tap the subject → follow the angle cue while keeping the subject in the ring → recall the strongest sampled view → capture. Portrait modes rank stable recommendations from body landmarks.
 
 | Module | Responsibility |
 |---|---|
@@ -16,8 +16,10 @@ Choose Space or Detail → start camera or practice with café samples → tap t
 | app/tracker.js | On-device landmark and light measurements for people |
 | app/coach.js | Lighting and framing rules; stable cue selection |
 | app/view.js | Shared preview geometry and overlays |
-| app/scout.js · app/poses.js | Subject-region measurements, viewpoint comparison and original pose templates |
+| app/scout.js · app/poses.js | Subject-region measurements, viewpoint comparison and dataset-derived pose recommendations |
 | demo/ | Original simulated experience |
+
+[Photography research and data credits](app/RESEARCH.md) · [Pose preprocessing](scripts/import_poses.py)
 
 ### Proposed photo roadmap
 

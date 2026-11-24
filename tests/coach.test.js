@@ -14,3 +14,22 @@ import {measure,compare} from '../app/scout.js';
 test('clipping outweighs background detail',()=>assert.equal(compare({clipped:.5,clutter:0},{clipped:0,clutter:.5}).pick,1));
 test('similar views give the photographer the choice',()=>assert.equal(compare({clipped:.01,clutter:.1},{clipped:.02,clutter:.12}).pick,null));
 test('subject metrics work on a frame edge',()=>{const data=new Uint8ClampedArray(4*100*100).fill(255);assert.equal(measure({data,width:100,height:100},{x:0,y:0}).clipped,1)});
+import {rankPoses,poseSvg} from '../app/poses.js';
+import {cameraPlan,AutoAssist} from '../app/settings.js';
+import {proposeAngle,remember} from '../app/director.js';
+test('ranking retrieves unique annotated references and changes with subject geometry',()=>{
+ const a=rankPoses(null,'Portrait');assert.equal(new Set(a.map(x=>x.id)).size,96);
+ function fromPose(ref){const mapped=[];[0,2,5,7,8,11,12,13,14,15,16,23,24,25,26,27,28].forEach((n,i)=>{if(ref.p[i])mapped[n]={x:ref.p[i][0]/100,y:ref.p[i][1]/100,visibility:1}});return mapped}
+ const winners=new Set(a.slice(0,25).map(x=>rankPoses(fromPose(x),'Portrait',0,1)[0].id));assert.ok(winners.size>5);
+ assert.match(poseSvg(a[0],'Profile'),/ellipse/);
+});
+test('subject intent changes camera height guidance',()=>{const m={high:0,low:0,right:2,left:2};assert.notEqual(proposeAngle('Layers',m)[0],proposeAngle('Surface',m)[0])});
+test('retain better distinct viewpoints',()=>{const m={left:6,right:6,low:0,high:.3,signature:[10,12]};let best=remember(null,m,()=>'A');best=remember(best,{...m,high:0,signature:[100,120]},()=>'B');assert.equal(best.src,'B');assert.equal(remember(best,m,()=>'A'),best)});
+test('motion exposure requires a compatible shutter and adequate ISO range',()=>{
+ const c={exposureMode:['manual'],exposureTime:{min:1,max:3000,step:1},iso:{min:50,max:3200,step:1}},s={exposureMode:'continuous',exposureTime:160,iso:100};
+ assert.deepEqual(cameraPlan(c,s,{moving:true}).values,{exposureMode:'manual',exposureTime:40,iso:400});assert.equal(cameraPlan({},s,{moving:true}),null);assert.equal(cameraPlan(c,s,{moving:true,video:true}),null)
+});
+test('auto exposure debounces, verifies and restores',async()=>{
+ const s={exposureCompensation:0},calls=[];const service=new AutoAssist({getCapabilities:()=>({exposureCompensation:{min:-2,max:2,step:.5}}),getSettings:()=>({...s}),applyConstraints:async({advanced})=>{Object.assign(s,advanced[0]);calls.push(1)}});
+ for(let i=0;i<6;i++)await service.sample({high:.5});assert.equal(calls.length,1);assert.equal(s.exposureCompensation,-.5);await service.restore();assert.equal(s.exposureCompensation,0)
+});

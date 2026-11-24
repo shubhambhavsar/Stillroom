@@ -1,5 +1,5 @@
 // Classic worker permits the WASM loader to import its local runtime scripts.
-let model, surface, context;
+let model, surface, context, previous;
 async function initialize() {
   const { FilesetResolver, PoseLandmarker } = await import(
     "../vendor/vision.mjs"
@@ -41,6 +41,7 @@ onmessage = async ({ data }) => {
       const points = result.landmarks[0],
         mask = result.segmentationMasks?.[0];
       if (!points || !mask) {
+        previous = null;
         postMessage({ points: null });
         return;
       }
@@ -51,6 +52,10 @@ onmessage = async ({ data }) => {
         fc = 0,
         bg = 0,
         bc = 0;
+      let l = 0,
+        r = 0,
+        nl = 0,
+        nr = 0;
       const nose = points[0];
       for (let y = 1; y < h - 1; y++)
         for (let x = 1; x < w - 1; x++) {
@@ -71,12 +76,35 @@ onmessage = async ({ data }) => {
             Math.abs(x / w - nose.x) < 0.065 &&
             Math.abs(y / h - nose.y) < 0.055
           ) {
+            if (x / w < nose.x) {
+              l += lum;
+              nl++;
+            } else {
+              r += lum;
+              nr++;
+            }
             face += lum;
             fc++;
           }
         }
+      const wrist = points[15],
+        shoulder = points[11];
+      const offset =
+        wrist.visibility > 0.7 && shoulder.visibility > 0.7
+          ? [wrist.x - shoulder.x, wrist.y - shoulder.y]
+          : null;
+      const moving = !!(
+        offset &&
+        previous &&
+        Math.hypot(offset[0] - previous[0], offset[1] - previous[1]) > 0.022
+      );
+      previous = offset;
+      const delta = r / (nr || 1) - l / (nl || 1);
       postMessage({
         points,
+        moving,
+        lightSide:
+          nl > 2 && nr > 2 && Math.abs(delta) > 9 ? Math.sign(delta) : 0,
         backlit: fc > 4 && bc > 10 && bg / bc - face / fc > 52,
       });
     });

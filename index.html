@@ -37,7 +37,7 @@
             <small>CAMERA STUDIO</small>
             <h1>Find your frame.</h1>
             <p>
-              Explore a place, photograph a detail, or choose a portrait pose.
+              Explore a place, photograph a detail, or get a pose recommendation.
             </p>
             <div class="entry">
               <button id="start">Start camera</button>
@@ -57,12 +57,14 @@
       <h2 id="heading" aria-live="polite">Portrait session</h2>
       <p id="hint">Your camera feed stays on this device.</p>
       <div id="scout" hidden>
-        <button id="angle">Save angle A</button>
-        <button id="sampleNext" hidden>Switch sample view</button>
+        <label>What matters? <select id="intent"><option>Overall scene</option><option>Surface</option><option>Layers</option></select></label>
+        <button id="best" hidden>Show strongest view</button>
+        <details id="manual"><summary>Compare two views manually</summary><button id="angle">Save angle A</button>
+        
         <div id="choices"></div>
-        <button id="clearAngles" hidden>Clear angles</button>
+        <button id="clearAngles" hidden>Clear angles</button></details><button id="sampleNext" hidden>Switch sample view</button>
       </div>
-      <div id="poses" hidden></div>
+      <div id="poses" hidden><button id="nextPose">Suggest a variation</button></div>
       <div class="options">
         <button id="pose" hidden>Hide pose guide</button
         ><button id="expose" hidden>Try brighter exposure</button>
@@ -71,7 +73,7 @@
       <label class="toggle"
         ><input id="coach" type="checkbox" checked /> Visual coaching</label
       >
-      <p id="health" role="status">
+      <label class="toggle"><input type="checkbox" id="assist" checked> Auto camera assist</label><p id="hardware" role="status"></p><details><summary>Photography sources</summary><a href="https://github.com/shubhambhavsar/Stillroom/blob/main/app/RESEARCH.md">Pose data, photography guidance and credits</a></details><p id="health" role="status">
         Camera permission is requested when you start.
       </p>
       <p id="message" role="status"></p>

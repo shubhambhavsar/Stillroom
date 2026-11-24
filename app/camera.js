@@ -1,6 +1,8 @@
 import { goals, cues, choose, settle, crop } from "./coach.js";
 import { measure, compare, sceneCue } from "./scout.js";
-import { poseList, poseSvg } from "./poses.js";
+import { analyzeView, proposeAngle, remember, quality } from "./director.js";
+import { AutoAssist } from "./settings.js";
+import { rankPoses, poseDirection, poseSvg } from "./poses.js";
 import { frame } from "./view.js";
 const $ = (id) => document.getElementById(id),
   video = $("source"),
@@ -76,7 +78,71 @@ let sampleImage = null,
   metrics = null,
   views = [],
   chosen = null;
-let posePicked = false;
+let rankings = rankPoses(null, "Portrait"),
+  reference = rankings[0],
+  pendingPose = null,
+  pendingSince = 0,
+  lastPose = null,
+  manuallySelected = false;
+let director = null,
+  bestView = null,
+  showBest = false,
+  assist = null,
+  assistPromise = null;
+function updateReference(points, light, time) {
+  rankings = rankPoses(points, goal(), light, picture.width / picture.height);
+  if (manuallySelected) return;
+  const next = rankings[0];
+  if (!lastPose || (pendingPose === next.id && time - pendingSince > 1600)) {
+    if (reference.id !== next.id || !lastPose) {
+      reference = next;
+      renderReference();
+    }
+    lastPose = next.id;
+  } else if (pendingPose !== next.id) {
+    pendingPose = next.id;
+    pendingSince = time;
+  }
+}
+function renderReference() {
+  $("poseGuide").innerHTML = poseSvg(reference, goal());
+}
+function updateAssist(signal) {
+  const service = assist;
+  if (!service || assistPromise || !$("assist").checked || !$("coach").checked)
+    return;
+  assistPromise = service
+    .sample(signal)
+    .then(async (message) => {
+      if (service !== assist) return;
+      if (!$("assist").checked || !$("coach").checked) {
+        await service.restore();
+        return;
+      }
+      if (message) $("hardware").textContent = message;
+    })
+    .catch(() => {})
+    .finally(() => {
+      assistPromise = null;
+    });
+}
+async function disableAssist() {
+  const service = assist;
+  if (!service) return;
+  await assistPromise;
+  try {
+    await service.restore();
+    if (assist === service)
+      $("hardware").textContent = "Using camera defaults.";
+  } catch {
+    if (assist === service)
+      $("hardware").textContent = "End the session to reset camera controls.";
+  }
+}
+$("assist").onchange = () => {
+  if (!$("assist").checked) disableAssist();
+  else if (stream) assist = new AutoAssist(stream.getVideoTracks()[0]);
+};
 const isPlace = () => ["Space", "Detail"].includes(goal());
 const active = () => !!stream || !!sampleImage;
 function cue() {
@@ -88,36 +154,33 @@ function cue() {
   let title = goal() + " session",
     hint = "Your camera feed stays on this device.";
   if (on && place) {
-    title =
-      views.length === 2
-        ? "Choose your viewpoint"
-        : views.length === 1 && !subject
-          ? "Tap the same subject"
-          : !subject
-            ? "Tap your subject"
-            : views.length === 2
-              ? "Choose your viewpoint"
-              : views.length
-                ? "Find a second angle"
-                : "Explore this angle";
-    hint = compareText
-      ? (compareText.pick === null
+    if (compareText) {
+      title = "Choose your viewpoint";
+      hint =
+        (compareText.pick === null
           ? ""
-          : "Angle " + "AB"[compareText.pick] + ": ") + compareText.reason
-      : !subject
-        ? "Tap the detail you want to keep in the frame."
-        : metrics
-          ? sceneCue(goal(), metrics)
-          : "Keep the subject in the target.";
+          : "Angle " + "AB"[compareText.pick] + ": ") + compareText.reason;
+    } else if (!subject) {
+      title = views.length
+        ? "Tap the same subject"
+        : "Tap what caught your eye";
+      hint =
+        "Tap it once, then keep it in the ring as you explore a small arc.";
+    } else if (director) {
+      [title, hint] = proposeAngle($("intent").value, director);
+      if (bestView && quality(director) < bestView.value - 0.05) {
+        title = "Your earlier angle was stronger";
+        hint =
+          "Tap Show strongest view and line up the reference to return to it.";
+      }
+    } else {
+      title = "Hold your subject in the ring";
+      hint = "Checking the light and background.";
+    }
   } else if (on) {
-    title =
-      tracking && ["back", "light", "left", "right", "search"].includes(key)
-        ? cues[key][0]
-        : poseList[selectedPose].name;
-    hint =
-      tracking && ["back", "light", "left", "right", "search"].includes(key)
-        ? cues[key][1]
-        : poseList[selectedPose].tip;
+    [title, hint] = poseDirection(reference, goal());
+    if (tracking && ["back", "light", "left", "right", "search"].includes(key))
+      [title, hint] = cues[key];
   } else if (active()) hint = "Frame the shot and tap the shutter.";
   $("heading").textContent = title;
   $("hint").textContent = hint;
@@ -134,7 +197,9 @@ function cue() {
   $("pose").textContent = skipPose ? "Show pose guide" : "Hide pose guide";
   $("poseGuide").hidden = !on || place || skipPose;
   $("target").hidden = !on || !place || !subject;
-  $("ghost").hidden = !on || chosen === null;
+  $("ghost").hidden = !on || (chosen === null && !showBest);
+  $("best").hidden = !on || !place || !bestView;
+  $("best").textContent = showBest ? "Hide reference" : "Show strongest view";
   const caps = stream?.getVideoTracks()[0]?.getCapabilities?.();
   const adjustment =
     place && metrics
@@ -155,6 +220,7 @@ function cue() {
         : "Lift exposure";
   $("expose").hidden =
     !on ||
+    $("assist").checked ||
     !caps?.exposureCompensation ||
     (!adjustment && exposureBase === null);
 }
@@ -163,11 +229,27 @@ function clearAngles() {
   metrics = null;
   views = [];
   chosen = null;
+  director = null;
+  bestView = null;
+  showBest = false;
   $("choices").replaceChildren();
   $("ghost").removeAttribute("src");
   cue();
 }
+$("best").onclick = () => {
+  showBest = !showBest;
+  chosen = null;
+  if (showBest && bestView) $("ghost").src = bestView.src;
+  cue();
+};
+$("intent").onchange = () => {
+  bestView = null;
+  showBest = false;
+  metrics = readMetrics();
+  cue();
+};
 function pickView(index) {
+  showBest = false;
   chosen = index;
   $("ghost").src = views[index].src;
   [...$("choices").children].forEach((el, i) =>
@@ -180,10 +262,13 @@ function pickView(index) {
 function readMetrics() {
   if (!subject || !ready) return null;
   sampleCtx.drawImage(picture, 0, 0, sample.width, sample.height);
-  return measure(
-    sampleCtx.getImageData(0, 0, sample.width, sample.height),
-    subject,
-  );
+  const pixels = sampleCtx.getImageData(0, 0, sample.width, sample.height);
+  director = analyzeView(pixels, subject);
+  if (!showBest)
+    bestView = remember(bestView, director, () =>
+      sample.toDataURL("image/jpeg", 0.8),
+    );
+  return measure(pixels, subject);
 }
 $("angle").onclick = () => {
   if (views.length >= 2 || !subject) return;
@@ -234,23 +319,21 @@ $("clearAngles").onclick = () => {
   clearAngles();
   $("message").textContent = "";
 };
-function selectPose(index, user = false) {
-  if (user) posePicked = true;
-  selectedPose = index;
+$("nextPose").onclick = () => {
+  const top = rankings.slice(0, 12);
+  selectedPose =
+    (Math.max(
+      -1,
+      top.findIndex((p) => p.id === reference.id),
+    ) +
+      1) %
+    top.length;
+  reference = top[selectedPose];
+  manuallySelected = true;
   skipPose = false;
-  $("poseGuide").innerHTML = poseSvg(index);
-  [...$("poses").children].forEach((b, i) =>
-    b.setAttribute("aria-pressed", i === index),
-  );
+  renderReference();
   cue();
-}
-poseList.forEach(({ name }, i) => {
-  const b = document.createElement("button");
-  b.innerHTML = poseSvg(i);
-  b.append(name);
-  b.onclick = () => selectPose(i, true);
-  $("poses").append(b);
-});
+};
 async function practice() {
   const version = ++sampleVersion,
     token = session,
@@ -324,16 +407,13 @@ function track() {
       }
       busy = false;
       tracking = data;
-      if (data.points && !posePicked) {
-        const p = data.points;
-        const index =
-          goal() === "Social" && p[23].visibility > 0.65
-            ? 1
-            : goal() === "Portrait" && Math.abs(p[11].z - p[12].z) > 0.18
-              ? 2
-              : 0;
-        selectPose(index);
-        posePicked = true;
+      if (data.points) {
+        updateReference(data.points, data.lightSide, performance.now());
+        updateAssist({
+          low: data.backlit ? 0.36 : 0,
+          moving: data.moving,
+          video: goal() === "Video",
+        });
       }
       settle(
         stable,
@@ -387,6 +467,7 @@ function draw(time) {
     else if (isPlace() && subject && $("coach").checked && time - last >= 650) {
       last = time;
       metrics = readMetrics();
+      if (director) updateAssist(director);
       cue();
     }
   }
@@ -394,6 +475,10 @@ function draw(time) {
 }
 function stop() {
   session++;
+  assist = null;
+  lastPose = null;
+  manuallySelected = false;
+  $("hardware").textContent = "";
   sampleVersion++;
   sampleImage = null;
   clearAngles();
@@ -435,6 +520,9 @@ async function start() {
     }
     stream = input;
     const t = input.getVideoTracks()[0];
+    assist = new AutoAssist(t);
+    $("hardware").textContent =
+      "Camera auto exposure · watching available controls.";
     mirrored = (t.getSettings().facingMode || face) === "user";
     t.onended = () => {
       if (token === session) {
@@ -549,8 +637,12 @@ $("stop").onclick = stop;
 $("capture").onclick = capture;
 $("goal").onchange = () => {
   skipPose = false;
-  posePicked = false;
-  selectPose(goal() === "Social" ? 1 : 0);
+  manuallySelected = false;
+  lastPose = null;
+  pendingPose = null;
+  rankings = rankPoses(null, goal());
+  reference = rankings[0];
+  renderReference();
   clearAngles();
   size();
   if (sampleImage) practice();
@@ -565,7 +657,10 @@ $("pose").onclick = () => {
 };
 $("coach").onchange = () => {
   track();
-  if (!$("coach").checked) $("health").textContent = "Visual coaching paused.";
+  if (!$("coach").checked) {
+    disableAssist();
+    $("health").textContent = "Visual coaching paused.";
+  }
 };
 $("expose").onclick = async () => {
   const t = stream?.getVideoTracks()[0];
@@ -610,4 +705,5 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", stop);
 size();
 controls();
-selectPose(0);
+renderReference();
+cue();

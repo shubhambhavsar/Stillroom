@@ -46,6 +46,11 @@ try {
   await page.goto("http://127.0.0.1:8187");
   await page.getByRole("button", { name: "Practice with samples" }).click();
   await page.locator("#photo").press("Enter");
+  await page.getByRole("button", { name: "Show strongest view" }).click();
+  assert.equal(await page.locator("#ghost").isVisible(), true);
+  await page.getByRole("button", { name: "Hide reference" }).click();
+  await page.locator("#intent").selectOption("Layers");
+  await page.locator("#manual summary").click();
   await page.getByRole("button", { name: "Save angle A" }).click();
   await page.getByRole("button", { name: "Switch sample view" }).click();
   await page.waitForTimeout(350);
@@ -65,7 +70,7 @@ try {
   await page.locator("#goal").selectOption("Portrait");
   await page.getByText("On-device coaching active").waitFor({ timeout: 45000 });
   await page
-    .getByRole("button", { name: "Hand at waist", exact: true })
+    .getByRole("button", { name: "Suggest a variation", exact: true })
     .click();
   const template = await page.locator("#poseGuide").innerHTML();
   await page.waitForTimeout(1100);
