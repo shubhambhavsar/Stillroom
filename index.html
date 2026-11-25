@@ -19,7 +19,7 @@
       <div class="stage">
         <div id="frame">
           <canvas id="photo"></canvas>
-          <div id="poseGuide" hidden></div>
+          <div id="pickedGuide" aria-hidden="true"></div><div id="poseGuide" hidden></div>
           <i id="target" hidden></i><img id="ghost" hidden alt="" /><span
             id="inframe" role="status"
             hidden
@@ -38,11 +38,19 @@
         </div>
       </div>
       <div id="moment" hidden><span id="momentLabel" role="status"></span><progress id="hold" max="1" value="0" aria-label="Auto-capture readiness"></progress></div>
+      <div id="poseCaption" hidden><span id="poseInstruction"></span><button id="clearPicked">Remove guide</button></div>
       <div class="deck">
         <button id="flip" disabled>Flip</button
         ><button id="capture" disabled aria-label="Take photo"><b></b></button
         ><button id="stop" disabled>End</button>
       </div>
+    <button id="poseOpen" aria-controls="poseTray" aria-expanded="false">Pose suggestions</button>
+    <section id="poseTray" hidden aria-label="Pose suggestions">
+      <div class="poseTools"><button id="recTab">Recommended</button><button id="mineTab">My poses</button><button id="closeTray" aria-label="Close pose picker">×</button></div>
+      <div id="poseCards"></div>
+      <div class="poseTools"><button id="morePoses">Change batch</button><button id="importPose" hidden>Add portrait photo</button><button id="managePoses" hidden>Select</button><button id="deletePoses" hidden>Delete selected</button></div>
+      <input type="file" accept="image/*" id="poseFile" hidden><div id="poseStatus" role="status"></div>
+    </section>
     <p id="message" role="status"></p></section>
     <div id="alternatives"><button id="creative" hidden></button><button id="previous" hidden><img alt="Earlier framing"> Earlier view</button><img id="referencePhoto" hidden src="demo/portrait.jpg" alt="Portrait gaze reference"></div><details id="info"><summary>Camera info</summary><aside><label
           >Capture format

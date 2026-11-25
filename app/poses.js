@@ -110,3 +110,19 @@ export function poseSvg(ref, goal) {
     '" rx="5" ry="7"/></g></svg>'
   );
 }
+
+// Form a continuous human contour from the catalogue's annotated body points.
+export function poseOutline(ref, crop) {
+  const pts = ref.p;
+  const full = crop === "Space";
+  const used = pts.slice(0,full?17:13).filter(Boolean);
+  const xs = used.map(p=>p[0]), ys = used.map(p=>p[1]);
+  const span = Math.max(8,Math.hypot(pts[5][0]-pts[6][0],pts[5][1]-pts[6][1]));
+  const pad=span*.65;
+  const box=[Math.min(...xs)-pad,Math.min(...ys)-pad,Math.max(...xs)-Math.min(...xs)+2*pad,Math.max(...ys)-Math.min(...ys)+2*pad];
+  const body=[5,6,12,11].map(k=>pts[k].join(",")).join(" ");
+  const limbs=bones.filter(([a,b])=>pts[a]&&pts[b]&&(full||b<13)).map(([a,b])=>
+    '<path d="M'+pts[a].join(" ")+'L'+pts[b].join(" ")+'" stroke-width="'+span*(b>=13?.37:.25)+'"/>').join("");
+  const uid="edge-"+ref.id;
+  return '<svg aria-hidden="true" viewBox="'+box.join(" ")+'"><defs><filter id="'+uid+'" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="1.2"/><feComposite in2="SourceAlpha" operator="out" result="rim"/><feFlood flood-color="white"/><feComposite in2="rim" operator="in"/></filter></defs><g fill="white" stroke="white" stroke-linecap="round" filter="url(#'+uid+')"><polygon points="'+body+'"/>'+limbs+'<ellipse cx="'+pts[0][0]+'" cy="'+pts[0][1]+'" rx="'+span*.29+'" ry="'+span*.36+'"/></g></svg>';
+}

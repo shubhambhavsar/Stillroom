@@ -385,3 +385,18 @@ main {display:block;max-width:820px;padding-top:12px}
 #auto[aria-pressed=false] {background:#354239;color:white}
 #moment {padding:.45rem 1rem;text-align:center;font-size:.94rem}
 #hold {display:block;width:min(12rem,70%);height:.35rem;margin:.45rem auto 0;accent-color:#d1ed98}
+#pickedGuide {position:absolute;inset:0;color:white;pointer-events:none;filter:drop-shadow(0 1px 2px #243325)}
+#pickedGuide svg,#pickedGuide img {width:100%;height:100%;object-fit:contain}
+#poseOpen {display:block;margin:0 auto 10px;border-radius:20px}
+#poseTray {padding:12px;background:#27362c}
+.poseTools,#poseCards,#poseCaption {display:flex;align-items:center;gap:8px}
+.poseTools button,#poseCaption button {background:#35483b;color:white;font-size:.9rem}
+.poseTools [aria-pressed=true],#poseCards [aria-pressed=true] {outline:2px solid #ddf1bb}
+#closeTray {margin-left:auto}
+#poseCards {overflow:auto;padding:12px 3px}
+#poseCards button {flex:0 0 96px;padding:6px;background:#425549;color:white}
+#poseCards svg,#poseCards img {width:100%;height:88px;object-fit:contain;display:block}
+#poseCards span {font-size:.8rem}
+#poseCaption {padding:8px 14px;justify-content:center}
+#poseStatus {margin-top:5px}
+.deck {touch-action:pan-x}

@@ -13,3 +13,9 @@
 **Rebuild.** Extract person_keypoints_val2017.json from the official train/val annotation archive and run `python3 scripts/import_poses.py /path/to/person_keypoints_val2017.json`. Ranking weights, tolerances and frame scores are product heuristics, pending blind evaluation.
 
 The seated window reference is a cropped version of [Pexels photo 842567](https://www.pexels.com/photo/842567/), used under the [Pexels License](https://www.pexels.com/license/). Close upper-body framing selects this reference. The coach cannot reliably infer sitting from a chest-up crop.
+
+### Pose suggestions in the camera
+
+[Huawei’s HarmonyOS instructions](https://consumer.huawei.com/cn/support/content/zh-cn16094218/) document opening the toolbox from the shutter, browsing scene recommendations, loading more resources, changing batches, importing a portrait into My poses, managing selections, and matching a guide before pressing the shutter. [Coverage of Huawei’s demonstration](https://www.androidauthority.com/huawei-pura-90-ai-posture-recommendation-3657761/) also describes brief posing instructions.
+
+Stillroom bundles its pose catalogue and ranks body landmarks using geometry, framing and side lighting. Two photograph cards use on-device person segmentation. Illustrated cards approximate a silhouette from COCO joints. Gallery imports store a small photo and segmentation contour in this browser. Selected guides use manual capture. Real-device comparison of recommendation quality with Huawei is pending.

@@ -1,3 +1,4 @@
+import {installPosePicker} from "./pose-picker.js";
 import { MomentMeter } from "./moment.js";
 import { goals, cues, choose, settle, crop } from "./coach.js";
 import { measure, compare, sceneCue } from "./scout.js";
@@ -44,7 +45,8 @@ function size() {
 function controls() {
   const live = !!stream || !!sampleImage,
     recording = recorder?.state === "recording";
-  $("auto").hidden = !stream || goal() === "Video";
+  $("poseOpen").hidden = goal() === "Video";
+  $("auto").hidden = picker.active || picker.open || !stream || goal() === "Video";
   $("flip").disabled = !stream || recording;
   $("stop").disabled = !live && !opening;
   $("goal").disabled = !!recording || opening;
@@ -156,7 +158,7 @@ function resetGuidance() {
   dismissed.clear();
 }
 function cue() {
-  const on = active() && ready && $("coach").checked;
+  const on = !picker.active && !picker.open && active() && ready && $("coach").checked;
   const nose = !subject && tracking?.points?.[0];
   const person = nose && nose.visibility > 0.65;
   const upperBody = person && tracking.points[11]?.visibility > .65 && tracking.points[12]?.visibility > .65;
@@ -439,8 +441,9 @@ $("auto").onclick = () => {
   $("auto").textContent = autoEnabled ? "Auto-capture on" : "Auto-capture off";
   resetMoment();
 };
+const picker = installPosePicker(() => ({points:tracking?.points, light:tracking?.lightSide, aspect:picture.width/picture.height}), () => {resetMoment();queueMicrotask(() => {controls();cue();});});
 function watchMoment(time) {
-  if (!autoEnabled || goal() === "Video" || encoding || $("review").open || document.hidden) return resetMoment();
+  if (picker.open || picker.active || !autoEnabled || goal() === "Video" || encoding || $("review").open || document.hidden) return resetMoment();
   if (time-lastProbe < 130 || video.currentTime === lastVideoTime) return;
   lastProbe = time;
   lastVideoTime = video.currentTime;
@@ -481,6 +484,7 @@ function draw(time) {
   raf = requestAnimationFrame(draw);
 }
 function stop() {
+  picker.clear();
   resetMoment();
   encoding = false;
   session++;
@@ -657,6 +661,7 @@ $("flip").onclick = () => {
 $("stop").onclick = stop;
 $("capture").onclick = capture;
 $("goal").onchange = () => {
+  picker.clear();
   skipPose = false;
   manuallySelected = false;
   lastPose = null;

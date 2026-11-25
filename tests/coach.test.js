@@ -48,3 +48,13 @@ test("auto-capture requires sustained detail, framing and stability", () => {
   data.fill(255);
   for(let t=2650;t<4400;t+=150) assert.equal(read(t),0);
 });
+
+import { poseOutline } from "../app/poses.js";
+test("all catalogue poses produce finite guides for either camera crop",()=>{
+  const catalogue = rankPoses(null,"Portrait");
+  for(const ref of catalogue) for(const crop of ["Space","Portrait"]){
+    const guide=poseOutline(ref,crop);
+    assert.match(guide,/<polygon/);
+    assert.doesNotMatch(guide,/undefined|NaN|Infinity/);
+  }
+});
