@@ -738,3 +738,5 @@ cue();
 start();
 
 $("tryAlternative").onclick = () => { $("review").close(); alternative = true; cue(); };
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("./offline.js").catch(()=>{});

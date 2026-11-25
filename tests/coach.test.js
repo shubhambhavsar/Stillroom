@@ -78,3 +78,16 @@ test("a chest-up crop receives head and shoulder photographs; the overlay maps t
   }
   assert.equal(fitPortrait(options[0],null,504,370),null);
 });
+
+import {searchReferences} from "../app/reference-search.js";
+import {readFileSync} from "node:fs";
+test("reference retrieval filters unsupported gestures before applying preferences",()=>{
+ const index=JSON.parse(readFileSync(new URL("../app/reference-index.json",import.meta.url)));
+ const items=[...portraits,...index], p=[];
+ p[15]={x:.39,y:.51,visibility:.9};
+ const options={mood:"candid",style:"masculine",situation:""};
+ const base=searchReferences(items,p,options);
+ assert.ok(!base.some(r=>["842567","2379004","1040945","1055691"].includes(r.id)));
+ assert.equal(searchReferences(items,p,{...options,cup:true})[0].id,"842567");
+ assert.ok(searchReferences(index,[],{mood:"playful",style:"feminine"})[0].style==="feminine");
+});

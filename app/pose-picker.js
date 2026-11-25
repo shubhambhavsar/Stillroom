@@ -1,5 +1,6 @@
 import {portraits} from "./portrait-catalog.js";
-import {availablePoses, fitPortrait} from "./portrait-frame.js";
+import {searchReferences} from "./reference-search.js";
+import {inFrame, fitPortrait} from "./portrait-frame.js";
 const $ = id => document.getElementById(id);
 const storageKey = "stillroom.personal-poses.v1";
 const jointIds = [0,2,5,7,8,11,12,13,14,15,16,23,24,25,26,27,28];
@@ -85,18 +86,54 @@ export function installPosePicker(context, reset) {
     if(!box)return;
     Object.assign(el.style,{width:box.w+"px",height:box.h+"px",left:box.x+"px",top:box.y+"px",transform:box.flip?"scaleX(-1)":"none"});
   }
-  function refresh(){ranked=availablePoses(portraits,context().points);}
+  let collection=portraits, pendingIndex, worker, heldCup=false, sceneId=0, snapshotPoints;
+  function refresh(){
+    ranked=searchReferences(collection,snapshotPoints,{
+      mood:$("poseMood").value, style:$("poseStyle").value,
+      situation:$("poseSituation").value,cup:heldCup && !$("poseSituation").value
+    });
+  }
+  function updateFirstPage(){
+    if(tab!=="recommended" || $("poseTray").hidden || offset!==0)return;
+    refresh();render();
+  }
+  function loadIndex(){
+    pendingIndex ??= fetch("./app/reference-index.json").then(r=>{
+      if(!r.ok)throw Error();return r.json();
+    }).then(items=>{collection=[...portraits,...items];updateFirstPage();}).catch(()=>{pendingIndex=null;});
+  }
+  async function readScene(){
+    const id=++sceneId;
+    snapshotPoints=context().points;
+    heldCup=false;
+    const wrists=[15,16].map(i=>snapshotPoints?.[i]).filter(inFrame);
+    if(!wrists.length)return;
+    try{
+      worker ??= new Worker(new URL("./scene-object.js",import.meta.url));
+      worker.onmessage=({data})=>{
+        if(data.id!==sceneId || !data.held)return;
+        heldCup=true;updateFirstPage();
+      };
+      const frame=await createImageBitmap($("photo"),{resizeWidth:320,resizeQuality:"low"});
+      if(id!==sceneId){frame.close();return;}
+      worker.postMessage({id,frame,wrists},[frame]);
+    }catch{/* Crop and user-selected context remain available. */}
+  }
+  for(const id of ["poseMood","poseStyle","poseSituation"]){
+    $(id).onchange=()=>{offset=0;refresh();render();};
+  }
   function render(){
     const mine=tab==="mine";
+    $("searchPrefs").hidden=mine;
     $("recTab").setAttribute("aria-pressed",String(!mine));
     $("mineTab").setAttribute("aria-pressed",String(mine));
-    $("morePoses").hidden=mine||ranked.length<=4;
+    $("morePoses").hidden=mine||ranked.length<=3;
     $("importPose").hidden=!mine||managing;
     $("managePoses").hidden=!mine||!imported.length;
     $("managePoses").textContent=managing?"Cancel selection":"Select";
     $("deletePoses").hidden=!managing;
     $("deletePoses").disabled=!deleted.size;
-    const list=mine?imported:ranked.slice(offset,offset+4);
+    const list=mine?imported:ranked.slice(offset,offset+3);
     const cards=$("poseCards");cards.replaceChildren();
     for(const [i,item] of list.entries()){
       const b=document.createElement("button");
@@ -113,7 +150,7 @@ export function installPosePicker(context, reset) {
   }
   function open(){
     generation++;
-    refresh();offset=0;managing=false;deleted.clear();
+    readScene();loadIndex();refresh();offset=0;managing=false;deleted.clear();
     $("poseTray").hidden=false;$("poseOpen").setAttribute("aria-expanded","true");reset();render();
   }
   $("poseOpen").onclick=()=>{if($("poseTray").hidden)open();else $("closeTray").click();};
@@ -125,7 +162,7 @@ export function installPosePicker(context, reset) {
   $("clearPicked").onclick=clear;
   $("recTab").onclick=()=>{generation++;tab="recommended";managing=false;deleted.clear();refresh();offset=0;render();};
   $("mineTab").onclick=()=>{generation++;tab="mine";render();};
-  $("morePoses").onclick=()=>{offset=offset+4>=ranked.length?0:offset+4;render();};
+  $("morePoses").onclick=()=>{offset=offset+3>=ranked.length?0:offset+3;render();};
   $("managePoses").onclick=()=>{managing=!managing;deleted.clear();render();};
   $("deletePoses").onclick=()=>{try{persist(imported.filter(r=>!deleted.has(r.id)));if(deleted.has(selected?.id)){clear();open();}managing=false;deleted.clear();render();}catch{status("Could not update this browser’s saved poses.");}};
   $("importPose").onclick=()=>$("poseFile").click();

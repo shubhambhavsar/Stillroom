@@ -47,7 +47,9 @@
     <button id="poseOpen" aria-controls="poseTray" aria-expanded="false">Pose suggestions</button>
     <section id="poseTray" hidden aria-label="Pose suggestions">
       <div class="poseTools"><button id="recTab">Recommended</button><button id="mineTab">My poses</button><button id="closeTray" aria-label="Close pose picker">×</button></div>
-      <div id="poseCards"></div>
+      <div id="searchPrefs"><label>Look<select id="poseMood"><option value="">Any look</option><option value="candid">Candid</option><option value="confident">Confident</option><option value="playful">Playful</option></select></label>
+<label>Styling<select id="poseStyle"><option value="">Any styling</option><option value="masculine">Masculine</option><option value="feminine">Feminine</option></select></label>
+<label>Situation<select id="poseSituation"><option value="">From camera</option><option value="seated">Seated</option><option value="cup">Holding a cup</option><option value="steps">On steps</option><option value="jacket">Wearing a jacket</option><option value="pockets">Has pockets</option></select></label></div><div id="poseCards"></div>
       <div class="poseTools"><button id="morePoses">Change batch</button><button id="importPose" hidden>Add portrait photo</button><button id="managePoses" hidden>Select</button><button id="deletePoses" hidden>Delete selected</button></div>
       <input type="file" accept="image/*" id="poseFile" hidden><div id="poseStatus" role="status"></div>
     </section>
