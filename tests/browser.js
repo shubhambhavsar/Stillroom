@@ -47,7 +47,7 @@ try {
   await page.waitForFunction(() => !document.querySelector("#capture").disabled);
   assert.equal(await page.locator("#poseGuide").isVisible(), false);
   await page.locator("#poseOpen").click();
-  await page.locator("#morePoses").click();
+  assert.ok(await page.locator("#poseCards button img").count() >= 4);
   await page.locator("#poseCards button").first().click();
   assert.equal(await page.locator("#pickedGuide svg").count(), 1);
   await page.locator("#clearPicked").click();

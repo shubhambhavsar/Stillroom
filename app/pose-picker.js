@@ -1,5 +1,5 @@
-import {rankPoses, poseOutline, poseDirection} from "./poses.js";
-
+import {portraits} from "./portrait-catalog.js";
+import {availablePoses, fitPortrait} from "./portrait-frame.js";
 const $ = id => document.getElementById(id);
 const storageKey = "stillroom.personal-poses.v1";
 const jointIds = [0,2,5,7,8,11,12,13,14,15,16,23,24,25,26,27,28];
@@ -39,25 +39,6 @@ async function extractPhoto(file) {
 }
 export function installPosePicker(context, reset) {
   let tab="recommended", offset=0, ranked=[], selected=null, managing=false, imported=[], generation=0;
-  let crop="Portrait";
-  const photoCache=new Map();
-  const photos=[
-    {id:"seated",thumb:"images/seated-window.jpg",label:"Seated window portrait"},
-    {id:"standing",thumb:"demo/portrait.jpg",label:"Relaxed standing portrait"}
-  ];
-  async function choose(item) {
-    if(!item.label)return pick(item);
-    const token=++generation;
-    status("Preparing the photographic outline…");
-    try {
-      if(!photoCache.has(item.id)){
-        const response=await fetch(item.thumb);
-        if(!response.ok)throw Error();
-        photoCache.set(item.id,await extractPhoto(await response.blob()));
-      }
-      if(token===generation)pick({...photoCache.get(item.id),id:item.id,label:item.label});
-    }catch{if(token===generation)status("Photo analysis is unavailable. Choose an illustrated guide below.");}
-  }
   const deleted=new Set();
   try {imported=JSON.parse(localStorage.getItem(storageKey)||"[]");} catch {}
   function persist(list) {localStorage.setItem(storageKey,JSON.stringify(list));imported=list;}
@@ -76,42 +57,56 @@ export function installPosePicker(context, reset) {
     selected=item;
     const layer=$("pickedGuide");
     layer.replaceChildren();
-    if(item.outline){
+    if(item.path){
+      const ns="http://www.w3.org/2000/svg";
+      const svg=document.createElementNS(ns,"svg"), path=document.createElementNS(ns,"path");
+      svg.setAttribute("viewBox","0 0 "+item.size.join(" "));
+      path.setAttribute("d",item.path);
+      path.setAttribute("fill","none"); path.setAttribute("stroke","white");
+      path.setAttribute("stroke-width","2"); path.setAttribute("vector-effect","non-scaling-stroke");
+      path.setAttribute("stroke-linejoin","round");
+      svg.append(path);layer.append(svg);
+    } else {
       const img=new Image();img.src=item.outline;img.alt="";layer.append(img);
-    } else layer.innerHTML=poseOutline(item,crop);
+    }
     $("poseCaption").hidden=false;
-    $("poseInstruction").textContent=item.outline?(item.id==="seated"?"Relax your shoulders and look just past the lens.":"Match the head and shoulders to the outline."):poseDirection(item,crop)[1];
+    $("poseThumbnail").src=item.thumb;
+    $("poseInstruction").textContent=item.cue || "Use the photo to match the angle of your shoulders.";
+    align();
     $("poseTray").hidden=true;
     $("poseOpen").setAttribute("aria-expanded","false");
     reset();
   }
-  function refresh(){
-    const live=context();
-    crop=live.points?.[27]?.visibility>.65 && live.points[27].y<1?"Space":"Portrait";
-    const ordered=crop==="Space"?[photos[1],photos[0]]:photos;
-    ranked=[...ordered,...rankPoses(live.points,crop,live.light,live.aspect)];
+  function align(){
+    if(!selected)return;
+    const layer=$("pickedGuide"), el=layer.firstElementChild;
+    const box=fitPortrait(selected,context().points,layer.clientWidth,layer.clientHeight);
+    el.style.visibility=box?"visible":"hidden";
+    if(!box)return;
+    Object.assign(el.style,{width:box.w+"px",height:box.h+"px",left:box.x+"px",top:box.y+"px",transform:box.flip?"scaleX(-1)":"none"});
   }
+  function refresh(){ranked=availablePoses(portraits,context().points);}
   function render(){
     const mine=tab==="mine";
     $("recTab").setAttribute("aria-pressed",String(!mine));
     $("mineTab").setAttribute("aria-pressed",String(mine));
-    $("morePoses").hidden=mine;
+    $("morePoses").hidden=mine||ranked.length<=4;
     $("importPose").hidden=!mine||managing;
     $("managePoses").hidden=!mine||!imported.length;
     $("managePoses").textContent=managing?"Cancel selection":"Select";
     $("deletePoses").hidden=!managing;
     $("deletePoses").disabled=!deleted.size;
-    const list=mine?imported:ranked.slice(offset,offset+6);
+    const list=mine?imported:ranked.slice(offset,offset+4);
     const cards=$("poseCards");cards.replaceChildren();
     for(const [i,item] of list.entries()){
       const b=document.createElement("button");
       if(item.thumb){const img=new Image();img.alt="";img.src=item.thumb;b.append(img);}
-      else b.innerHTML=poseOutline(item,crop);
+
       const label=document.createElement("span");
-      label.textContent=item.label || (mine?"My pose "+(i+1):poseDirection(item,crop)[0]);
+      label.textContent=item.label || "My pose "+(i+1);
       b.append(label);
       b.setAttribute("aria-pressed",String(managing?deleted.has(item.id):selected?.id===item.id));
-      b.onclick=()=>{if(!managing)return choose(item);if(deleted.has(item.id))deleted.delete(item.id);else deleted.add(item.id);render();};
+      b.onclick=()=>{if(!managing)return pick(item);if(deleted.has(item.id))deleted.delete(item.id);else deleted.add(item.id);render();};
       cards.append(b);
     }
     status(mine&&!imported.length?"Add a portrait to reuse its outline.":"");
@@ -130,7 +125,7 @@ export function installPosePicker(context, reset) {
   $("clearPicked").onclick=clear;
   $("recTab").onclick=()=>{generation++;tab="recommended";managing=false;deleted.clear();refresh();offset=0;render();};
   $("mineTab").onclick=()=>{generation++;tab="mine";render();};
-  $("morePoses").onclick=()=>{offset=offset+6>=ranked.length?0:offset+6;render();};
+  $("morePoses").onclick=()=>{offset=offset+4>=ranked.length?0:offset+4;render();};
   $("managePoses").onclick=()=>{managing=!managing;deleted.clear();render();};
   $("deletePoses").onclick=()=>{try{persist(imported.filter(r=>!deleted.has(r.id)));if(deleted.has(selected?.id)){clear();open();}managing=false;deleted.clear();render();}catch{status("Could not update this browser’s saved poses.");}};
   $("importPose").onclick=()=>$("poseFile").click();
@@ -145,5 +140,5 @@ export function installPosePicker(context, reset) {
     }catch(error){status(error.name==="QuotaExceededError"?"Storage is full. Delete a saved pose and try again.":error.message||"Could not analyse this picture.");}
     finally{$("importPose").disabled=false;}
   };
-  return {clear, get active(){return !!selected;},get open(){return !$("poseTray").hidden;}};
+  return {clear, align, get active(){return !!selected;},get open(){return !$("poseTray").hidden;}};
 }

@@ -19,3 +19,9 @@ The seated window reference is a cropped version of [Pexels photo 842567](https:
 [Huawei’s HarmonyOS instructions](https://consumer.huawei.com/cn/support/content/zh-cn16094218/) document opening the toolbox from the shutter, browsing scene recommendations, loading more resources, changing batches, importing a portrait into My poses, managing selections, and matching a guide before pressing the shutter. [Coverage of Huawei’s demonstration](https://www.androidauthority.com/huawei-pura-90-ai-posture-recommendation-3657761/) also describes brief posing instructions.
 
 Stillroom bundles its pose catalogue and ranks body landmarks using geometry, framing and side lighting. Two photograph cards use on-device person segmentation. Illustrated cards approximate a silhouette from COCO joints. Gallery imports store a small photo and segmentation contour in this browser. Selected guides use manual capture. Real-device comparison of recommendation quality with Huawei is pending.
+
+### Photographic guide revision
+
+The recommended tray now uses photographic cards. The app uses precomputed person contours for these cards and aligns the selected reference to the detected nose and shoulder span in display coordinates. Only suggestions for the visible crop are eligible. When tracking drops out, the reference thumbnail remains available and the outline hides.
+
+Reference photographs via Pexels: [photo 842567](https://www.pexels.com/photo/842567/), [photo 1181686](https://www.pexels.com/photo/1181686/), [photo 774909](https://www.pexels.com/photo/774909/), [photo 614810](https://www.pexels.com/photo/614810/), [photo 1036623](https://www.pexels.com/photo/1036623/), [photo 2379004](https://www.pexels.com/photo/2379004/), [photo 1040945](https://www.pexels.com/photo/1040945/), [photo 1536619](https://www.pexels.com/photo/1536619/), [photo 1055691](https://www.pexels.com/photo/1055691/), [photo 1043474](https://www.pexels.com/photo/1043474/).

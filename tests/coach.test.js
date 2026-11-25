@@ -58,3 +58,23 @@ test("all catalogue poses produce finite guides for either camera crop",()=>{
     assert.doesNotMatch(guide,/undefined|NaN|Infinity/);
   }
 });
+
+import { availablePoses,fitPortrait } from "../app/portrait-frame.js";
+import { portraits } from "../app/portrait-catalog.js";
+test("a chest-up crop receives head and shoulder photographs; the overlay maps the reference nose to the live face",()=>{
+  const p=[];
+  p[0]={x:.31,y:.39,visibility:1};
+  p[11]={x:.51,y:.6,visibility:1};
+  p[12]={x:.16,y:.61,visibility:1};
+  p[15]={x:.4,y:.8,visibility:.8};
+  const options=availablePoses(portraits,p);
+  assert.ok(options.length>=3);
+  assert.ok(options.every(r=>r.kind==="head"&&r.thumb&&r.path));
+  for(const ref of options){
+    const fit=fitPortrait(ref,p,504,370);
+    const [x,y]=ref.points[0];
+    assert.ok(Math.abs(fit.x+(fit.flip?1-x:x)*fit.w-.31*504)<.001);
+    assert.ok(Math.abs(fit.y+y*fit.h-.39*370)<.001);
+  }
+  assert.equal(fitPortrait(options[0],null,504,370),null);
+});

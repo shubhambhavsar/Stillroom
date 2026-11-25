@@ -472,6 +472,7 @@ function draw(time) {
       ready = true;
       controls();
     }
+    picker.align();
     watchMoment(time);
     if (worker && !busy && time - last >= 150) analyze(time);
     if ($("coach").checked && time - lastMetrics >= 500) {
